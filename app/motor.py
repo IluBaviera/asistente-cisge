@@ -2,7 +2,12 @@ import pandas as pd
 import re
 
 # Cargar datos
-df = pd.read_excel("app/data/precios.xlsx")
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ruta_excel = os.path.join(BASE_DIR, "data", "precios.xlsx")
+
+df = pd.read_excel(ruta_excel)
 
 # Normalizar columnas
 df.columns = ['codigo', 'tipo', 'medida', 'marca', 'precio']
