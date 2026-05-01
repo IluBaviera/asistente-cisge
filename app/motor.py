@@ -7,7 +7,11 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ruta_excel = os.path.join(BASE_DIR, "data", "precios.xlsx")
 
-df = pd.read_excel(ruta_excel)
+try:
+    df = pd.read_excel(ruta_excel)
+except Exception as e:
+    print("ERROR CARGANDO EXCEL:", e)
+    raise e
 
 # Normalizar columnas
 df.columns = ['codigo', 'tipo', 'medida', 'marca', 'precio']
