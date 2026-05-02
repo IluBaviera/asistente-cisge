@@ -82,13 +82,14 @@ def consultar(texto: str) -> str:
     marca, tipo, medida = interpretar_mensaje(texto)
 
     if not marca or not tipo or not medida:
-    return (
-        "Te ayudo 👍\n\n"
-        "Solo necesito un poco más de info:\n"
-        "• Tipo (R1, R2, R6)\n"
-        "• Medida (1/4, 3/8, 1/2...)\n"
-        "• Marca (Qingflex o Vitillo)\n\n"
-        "Ejemplo: 'R1 1/4 Qingflex'"
-    )
+
+        return (
+            "Te ayudo 👍\n\n"
+            "Solo necesito un poco más de info:\n"
+            "• Tipo (R1, R2, R6)\n"
+            "• Medida (1/4, 3/8, 1/2...)\n"
+            "• Marca (Qingflex o Vitillo)\n\n"
+            "Ejemplo: 'R1 1/4 Qingflex'"
+        )
 
     return buscar_producto(marca, tipo, medida)
