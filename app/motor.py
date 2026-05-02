@@ -34,7 +34,12 @@ def buscar_producto(marca, tipo, medida):
 
     if not resultado.empty:
         fila = resultado.iloc[0]
-        return f"Producto: Manguera {tipo.upper()} {medida} {marca.capitalize()}\n💰 Precio: ${fila['precio']:.2f}\n📦 Código: {fila['codigo']}"
+        return (
+                f"Manguera hidráulica {tipo.upper()} {medida} {marca.capitalize()}\n"
+                f"💰 Precio: ${fila['precio']:.2f}\n"
+                f"📦 Código: {fila['codigo']}\n\n"
+                f"¿Necesitas otra medida o tipo?"
+                )   
     else:
         return "No encontré ese producto. ¿Puedes verificar los datos?"
 
@@ -77,12 +82,13 @@ def consultar(texto: str) -> str:
     marca, tipo, medida = interpretar_mensaje(texto)
 
     if not marca or not tipo or not medida:
-        return (
-            "No me quedó claro el producto.\n"
-            "Por favor indícame:\n"
-            "- Tipo (R1, R2, R6)\n"
-            "- Medida (1/4, 3/8, 1/2...)\n"
-            "- Marca (Qingflex o Vitillo)"
-        )
+    return (
+        "Te ayudo 👍\n\n"
+        "Solo necesito un poco más de info:\n"
+        "• Tipo (R1, R2, R6)\n"
+        "• Medida (1/4, 3/8, 1/2...)\n"
+        "• Marca (Qingflex o Vitillo)\n\n"
+        "Ejemplo: 'R1 1/4 Qingflex'"
+    )
 
     return buscar_producto(marca, tipo, medida)
