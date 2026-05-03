@@ -35,12 +35,23 @@ def buscar_producto(marca, tipo, medida):
 
     if not resultado.empty:
         fila = resultado.iloc[0]
-        return (
-                f"Manguera hidráulica {tipo.upper()} {medida} {marca.capitalize()}\n"
-                f"💰 Precio: ${fila['precio']:.2f}\n"
-                f"📦 Código: {fila['codigo']}\n\n"
-                f"¿Necesitas otra medida o tipo?"
-                )   
+
+        respuesta = (
+            f"Claro 👍\n\n"
+            f"Manguera hidráulica {tipo.upper()} {medida} {marca.capitalize()}\n"
+            f"💰 Precio: ${fila['precio']:.2f}\n"
+            f"📦 Código: {fila['codigo']}\n"
+        )
+
+        # 🔥 SUGERENCIA (upselling)
+        if tipo == "r1":
+            respuesta += (
+            "\n💡 Recomendación:\n"
+            "Si el equipo tiene mayor exigencia o uso continuo, "
+            "te conviene una versión reforzada de R1 para mayor durabilidad.\n"
+            )   
+
+        return respuesta
     else:
         return "No encontré ese producto. ¿Puedes verificar los datos?"
 
