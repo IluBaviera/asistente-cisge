@@ -53,7 +53,14 @@ def buscar_producto(marca, tipo, medida):
 
         return respuesta
     else:
-        return "No encontré ese producto. ¿Puedes verificar los datos?"
+        return (
+            "No encontré ese producto 😕\n\n"
+            "Puede ser por:\n"
+            "• Marca\n"
+            "• Medida\n"
+            "• Tipo\n\n"
+            "Si quieres, dime nuevamente y lo revisamos 👍"
+        )
 
 def interpretar_mensaje(texto):
     texto = texto.lower()
