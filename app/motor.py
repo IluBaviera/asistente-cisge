@@ -1,3 +1,4 @@
+log_consultas = []
 import pandas as pd
 import re
 
@@ -82,8 +83,7 @@ def consultar(texto: str) -> str:
     marca, tipo, medida = interpretar_mensaje(texto)
 
     if not marca or not tipo or not medida:
-
-        return (
+        respuesta = (
             "Te ayudo 👍\n\n"
             "Solo necesito un poco más de info:\n"
             "• Tipo (R1, R2, R6)\n"
@@ -91,5 +91,16 @@ def consultar(texto: str) -> str:
             "• Marca (Qingflex o Vitillo)\n\n"
             "Ejemplo: 'R1 1/4 Qingflex'"
         )
+    else:
+        respuesta = buscar_producto(marca, tipo, medida)
 
-    return buscar_producto(marca, tipo, medida)
+    # 🔥 LOG
+    log_consultas.append({
+        "mensaje": texto,
+        "marca": marca,
+        "tipo": tipo,
+        "medida": medida,
+        "respuesta": respuesta
+    })
+
+    return respuesta
