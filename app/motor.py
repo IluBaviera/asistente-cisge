@@ -96,23 +96,30 @@ def interpretar_mensaje(texto):
 
     return marca, tipo, medida
 
-
 def consultar(texto: str) -> str:
     marca, tipo, medida = interpretar_mensaje(texto)
 
-    if not marca or not tipo or not medida:
+    # 1. Validar lo mínimo necesario
+    if not tipo or not medida:
         respuesta = (
             "Te ayudo 👍\n\n"
-            "Solo necesito un poco más de info:\n"
-            "• Tipo (R1, R2, R6)\n"
-            "• Medida (1/4, 3/8, 1/2...)\n"
-            "• Marca (Qingflex o Vitillo)\n\n"
-            "Ejemplo: 'R1 1/4 Qingflex'"
+            "Solo necesito:\n"
+            "• Tipo (R1, R2...)\n"
+            "• Medida (1/4, 3/8...)\n"
         )
-    else:
-        respuesta = buscar_producto(marca, tipo, medida)
 
-    # 🔥 LOG
+    else:
+        # 2. Buscar incluso si marca es None
+        if not marca:
+            respuesta = (
+                "No indicaste marca 👀\n"
+                "Te cotizo Qingflex por defecto:\n\n"
+                + buscar_producto("qingflex", tipo, medida)
+            )
+        else:
+            respuesta = buscar_producto(marca, tipo, medida)
+
+    # 🔥 LOG (esto está perfecto)
     log_consultas.append({
         "mensaje": texto,
         "marca": marca,
