@@ -96,20 +96,38 @@ def interpretar_mensaje(texto):
 
     return marca, tipo, medida
 
+
+
+def obtener_medidas_disponibles(tipo):
+    medidas = df[df['tipo'] == tipo]['medida'].unique()
+    return sorted(medidas)
+
 def consultar(texto: str) -> str:
     marca, tipo, medida = interpretar_mensaje(texto)
 
-    # 1. Validar lo mínimo necesario
-    if not tipo or not medida:
+    # 1. Validar tipo
+    if not tipo:
         respuesta = (
             "Te ayudo 👍\n\n"
-            "Solo necesito:\n"
-            "• Tipo (R1, R2...)\n"
-            "• Medida (1/4, 3/8...)\n"
+            "Indícame el tipo:\n"
+            "• R1\n• R2\n• R6"
         )
 
+    # 2. Validar medida
+    elif not medida:
+        medidas = obtener_medidas_disponibles(tipo)
+
+        lista = "\n".join([f"• {m}" for m in medidas])
+
+        respuesta = (
+            f"Te ayudo 👍\n\n"
+            f"Estas son las medidas disponibles en {tipo.upper()}:\n"
+            f"{lista}\n\n"
+            "¿Cuál necesitas?"
+        )
+
+    # 3. Buscar producto
     else:
-        # 2. Buscar incluso si marca es None
         if not marca:
             respuesta = (
                 "No indicaste marca 👀\n"
@@ -119,7 +137,7 @@ def consultar(texto: str) -> str:
         else:
             respuesta = buscar_producto(marca, tipo, medida)
 
-    # 🔥 LOG (esto está perfecto)
+    # 🔥 LOG
     log_consultas.append({
         "mensaje": texto,
         "marca": marca,
@@ -129,3 +147,4 @@ def consultar(texto: str) -> str:
     })
 
     return respuesta
+
