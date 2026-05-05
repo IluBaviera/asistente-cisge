@@ -97,12 +97,28 @@ def interpretar_mensaje(texto):
     return marca, tipo, medida
 
 
-
 def obtener_medidas_disponibles(tipo):
     medidas = df[df['tipo'] == tipo]['medida'].unique()
-    return sorted(medidas)
+    return sorted([m for m in medidas if pd.notna(m)])
 
 def consultar(texto: str) -> str:
+    # 🔥 detectar múltiples líneas (IMPORTANTE)
+    lineas = [l.strip() for l in texto.split("\n") if l.strip()]
+
+    # 👉 modo cotización múltiple
+    if len(lineas) > 1:
+        respuesta = cotizar_multiple(lineas)
+
+        log_consultas.append({
+            "mensaje": texto,
+            "tipo": "multiple",
+            "respuesta": respuesta
+        })
+
+        return respuesta
+
+    # 👉 modo normal (una sola línea)
+    texto = lineas[0]
     marca, tipo, medida = interpretar_mensaje(texto)
 
     # 1. Validar tipo
@@ -148,3 +164,39 @@ def consultar(texto: str) -> str:
 
     return respuesta
 
+def cotizar_multiple(lineas):
+    respuesta = "Aquí tienes la cotización 👍\n\n"
+    total = 0
+
+    for i, linea in enumerate(lineas, start=1):
+        marca, tipo, medida = interpretar_mensaje(linea)
+
+        if not tipo or not medida:
+            respuesta += f"{i}️⃣ No entendí: {linea}\n\n"
+            continue
+
+        if not marca:
+            marca = "qingflex"
+
+        resultado = df[
+            (df['marca'] == marca) &
+            (df['tipo'] == tipo) &
+            (df['medida'] == medida)
+        ]
+
+        if not resultado.empty:
+            fila = resultado.iloc[0]
+            precio = fila['precio']
+            total += precio
+
+            respuesta += (
+                f"{i}️⃣ Manguera {tipo.upper()} {medida} {marca.capitalize()}\n"
+                f"💰 ${precio:.2f}\n"
+                f"📦 {fila['codigo']}\n\n"
+            )
+        else:
+            respuesta += f"{i}️⃣ No encontrado: {linea}\n\n"
+
+    respuesta += f"Total: ${total:.2f}"
+
+    return respuesta
