@@ -63,8 +63,8 @@ def buscar_producto(marca, tipo, medida):
         )
 
 def interpretar_mensaje(texto):
-    texto = texto.lower()
-
+    texto = re.sub(r"x\s*\d+", "", linea.lower())
+    
     # tipo
     tipo = None
     if "r1" in texto:
@@ -186,12 +186,16 @@ def cotizar_multiple(lineas):
 
         if not resultado.empty:
             fila = resultado.iloc[0]
+            cantidad = extraer_cantidad(linea)
             precio = fila['precio']
-            total += precio
+            subtotal = precio * cantidad
+            total += subtotal
 
             respuesta += (
                 f"{i}️⃣ Manguera {tipo.upper()} {medida} {marca.capitalize()}\n"
-                f"💰 ${precio:.2f}\n"
+                f"Cantidad: {cantidad}\n"
+                f"💰 Unitario: ${precio:.2f}\n"
+                f"💵 Subtotal: ${subtotal:.2f}\n"
                 f"📦 {fila['codigo']}\n\n"
             )
         else:
@@ -200,3 +204,10 @@ def cotizar_multiple(lineas):
     respuesta += f"Total: ${total:.2f}"
 
     return respuesta
+
+def extraer_cantidad(texto):
+    match = re.search(r"x\s*(\d+)", texto.lower())
+    if match:
+        return int(match.group(1))
+    return 1
+
