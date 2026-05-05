@@ -63,7 +63,7 @@ def buscar_producto(marca, tipo, medida):
         )
 
 def interpretar_mensaje(texto):
-    texto = re.sub(r"x\s*\d+", "", linea.lower())
+    texto = re.sub(r"x\s*\d+", "", texto.lower())
     
     # tipo
     tipo = None
