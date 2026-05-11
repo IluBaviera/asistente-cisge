@@ -5,6 +5,9 @@ API_URL = "http://127.0.0.1:8000/consultar"
 
 def consultar_api(mensaje, historial):
 
+    if historial is None:
+        historial = []
+
     response = requests.post(
         API_URL,
         json={"mensaje": mensaje}
@@ -12,7 +15,9 @@ def consultar_api(mensaje, historial):
 
     respuesta = response.json()["respuesta"]
 
-    historial.append((mensaje, respuesta))
+    historial = historial + [
+        [mensaje, respuesta]
+    ]
 
     return "", historial
 
@@ -21,6 +26,7 @@ with gr.Blocks() as demo:
     gr.Markdown("# 📲 Asistente Comercial CISGE")
 
     chatbot = gr.Chatbot(
+        value=[],
         height=500
     )
 

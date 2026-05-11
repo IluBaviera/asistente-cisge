@@ -167,8 +167,14 @@ def consultar(texto: str) -> str:
 def cotizar_multiple(lineas):
     respuesta = "Aquí tienes la cotización 👍\n\n"
     total = 0
-
+    descuento_pct = 0
+    
     for i, linea in enumerate(lineas, start=1):
+
+        if "descuento" in linea.lower():
+            descuento_pct = extraer_descuento(linea)
+            continue
+        
         marca, tipo, medida = interpretar_mensaje(linea)
 
         if not tipo or not medida:
@@ -201,7 +207,15 @@ def cotizar_multiple(lineas):
         else:
             respuesta += f"{i}️⃣ No encontrado: {linea}\n\n"
 
-    respuesta += f"Total: ${total:.2f}"
+    descuento_monto = total * (descuento_pct / 100)
+    total_final = total - descuento_monto
+
+    respuesta += f"Subtotal: ${total:.2f}\n"
+
+    if descuento_pct > 0:
+        respuesta += f"Descuento ({descuento_pct:.0f}%): -${descuento_monto:.2f}\n"
+
+    respuesta += f"Total final: ${total_final:.2f}"
 
     return respuesta
 
@@ -211,3 +225,10 @@ def extraer_cantidad(texto):
         return int(match.group(1))
     return 1
 
+def extraer_descuento(texto):
+    match = re.search(r"descuento\s*(\d+)", texto.lower())
+
+    if match:
+        return float(match.group(1))
+
+    return 0
