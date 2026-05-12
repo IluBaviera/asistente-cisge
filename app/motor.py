@@ -48,11 +48,11 @@ def formatear_resultado(fila, cantidad=1):
         f"✅ *{fila['codigo']}*\n"
         f"📋 {fila['descripcion'].title()}\n"
         f"🏷️ Marca: {fila['marca']}\n"
-        f"💰 Precio: S/ {fila['precio']:.2f} x {fila['unidad']}\n"
+        f"💰 Precio: $ {fila['precio']:.2f} x {fila['unidad']}\n"
     )
     if cantidad > 1:
         resp += f"📦 Cantidad: {cantidad}\n"
-        resp += f"💵 Subtotal: S/ {subtotal:.2f}\n"
+        resp += f"💵 Subtotal: $ {subtotal:.2f}\n"
     return resp
 
 def buscar_por_codigo(codigo):
@@ -226,8 +226,14 @@ def consultar(texto: str) -> str:
 
 def formatear_lista(resultados, titulo):
     resp = f"{titulo}\n\n"
+    resp += f"```\n"
+    resp += f"{'CÓDIGO':<20} {'PRECIO':>8}  DESCRIPCIÓN\n"
+    resp += f"{'-'*55}\n"
     for _, fila in resultados.iterrows():
-        resp += f"• *{fila['codigo']}* - {fila['descripcion'].title()} → S/ {fila['precio']:.2f}\n"
+        codigo = fila['codigo'][:19]
+        desc = fila['descripcion'].title()[:25]
+        resp += f"{codigo:<20} ${fila['precio']:>7.2f}  {desc}\n"
+    resp += f"```\n"
     resp += "\n¿Cuál necesitas? Escribe el código exacto."
     return resp
 
@@ -264,7 +270,7 @@ def cotizar_multiple(lineas):
             respuesta += (
                 f"{i}️⃣ *{fila['codigo']}*\n"
                 f"   {fila['descripcion'].title()}\n"
-                f"   Cant: {cantidad} | S/ {fila['precio']:.2f} c/u | Subtotal: S/ {subtotal:.2f}\n\n"
+                f"   Cant: {cantidad} | $ {fila['precio']:.2f} c/u | Subtotal: $ {subtotal:.2f}\n\n"
             )
         else:
             respuesta += f"{i}️⃣ ❌ No encontrado: `{linea}`\n\n"
@@ -273,9 +279,9 @@ def cotizar_multiple(lineas):
     total_final = total - descuento_monto
 
     respuesta += f"─────────────────\n"
-    respuesta += f"Subtotal: S/ {total:.2f}\n"
+    respuesta += f"Subtotal: $ {total:.2f}\n"
     if descuento_pct > 0:
-        respuesta += f"Descuento ({descuento_pct:.0f}%): -S/ {descuento_monto:.2f}\n"
-    respuesta += f"*TOTAL: S/ {total_final:.2f}*"
+        respuesta += f"Descuento ({descuento_pct:.0f}%): -$ {descuento_monto:.2f}\n"
+    respuesta += f"*TOTAL: $ {total_final:.2f}*"
 
     return respuesta
