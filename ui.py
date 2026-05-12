@@ -4,19 +4,22 @@ import requests
 API_URL = "http://127.0.0.1:8000/consultar"
 
 def consultar_api(mensaje, historial):
-
     if historial is None:
         historial = []
 
-    response = requests.post(
-        API_URL,
-        json={"mensaje": mensaje}
-    )
-
-    respuesta = response.json()["respuesta"]
+    try:
+        response = requests.post(
+            API_URL,
+            json={"mensaje": mensaje},
+            timeout=10
+        )
+        respuesta = response.json()["respuesta"]
+    except Exception as e:
+        respuesta = f"Error: {e}"
 
     historial = historial + [
-        [mensaje, respuesta]
+        {"role": "user", "content": mensaje},      # ← formato nuevo
+        {"role": "assistant", "content": respuesta}
     ]
 
     return "", historial
@@ -27,7 +30,7 @@ with gr.Blocks() as demo:
 
     chatbot = gr.Chatbot(
         value=[],
-        height=500
+        height=500,
     )
 
     msg = gr.Textbox(
@@ -43,6 +46,4 @@ with gr.Blocks() as demo:
         outputs=[msg, chatbot]
     )
 
-demo.launch(
-    server_name="0.0.0.0"
-)
+demo.launch(server_name="0.0.0.0")

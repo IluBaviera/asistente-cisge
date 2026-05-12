@@ -166,6 +166,19 @@ def consultar(texto: str) -> str:
 
 def cotizar_multiple(lineas):
     respuesta = "Aquí tienes la cotización 👍\n\n"
+
+    respuesta += "```text\n"
+
+    respuesta += (
+        f"{'Codigo':<15}"
+        f"{'Producto':<20}"
+        f"{'Cant':<8}"
+        f"{'Unit':<10}"
+        f"{'Subtotal':<10}\n"
+    )
+
+    respuesta += "-" * 65 + "\n"
+    
     total = 0
     descuento_pct = 0
     
@@ -176,6 +189,8 @@ def cotizar_multiple(lineas):
             continue
         
         marca, tipo, medida = interpretar_mensaje(linea)
+        
+        cantidad = extraer_cantidad(linea)
 
         if not tipo or not medida:
             respuesta += f"{i}️⃣ No entendí: {linea}\n\n"
@@ -192,18 +207,28 @@ def cotizar_multiple(lineas):
 
         if not resultado.empty:
             fila = resultado.iloc[0]
-            cantidad = extraer_cantidad(linea)
+
             precio = fila['precio']
             subtotal = precio * cantidad
             total += subtotal
 
+            codigo = str(fila['codigo'])
+
+            marca_abrev = {
+                "qingflex": "QF",
+                "vitillo": "VT"
+            }.get(marca, marca[:2].upper())
+
+            nombre_prod = f"{tipo.upper()} {medida} {marca_abrev}"
+
             respuesta += (
-                f"{i}️⃣ Manguera {tipo.upper()} {medida} {marca.capitalize()}\n"
-                f"Cantidad: {cantidad}\n"
-                f"💰 Unitario: ${precio:.2f}\n"
-                f"💵 Subtotal: ${subtotal:.2f}\n"
-                f"📦 {fila['codigo']}\n\n"
+                f"{codigo:<15}"
+                f"{nombre_prod:<20}"
+                f"{cantidad:<8}"
+                f"{precio:<10.2f}"
+                f"{subtotal:<10.2f}\n"
             )
+            
         else:
             respuesta += f"{i}️⃣ No encontrado: {linea}\n\n"
 
@@ -217,6 +242,9 @@ def cotizar_multiple(lineas):
 
     respuesta += f"Total final: ${total_final:.2f}"
 
+    respuesta += "-" * 65 + "\n"
+    respuesta += f"{'TOTAL FINAL:':<53}{total_final:<10.2f}\n"
+    respuesta += "```"
     return respuesta
 
 def extraer_cantidad(texto):
