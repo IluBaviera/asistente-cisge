@@ -1,12 +1,11 @@
-log_consultas = []
 import pandas as pd
 import re
-
-# Cargar datos
 import os
 
+log_consultas = []
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ruta_excel = os.path.join(BASE_DIR, "data", "precios.xlsx")
+ruta_excel = os.path.join(BASE_DIR, "data", "mangueras_precios.xlsx")
 
 try:
     df = pd.read_excel(ruta_excel)
@@ -15,248 +14,268 @@ except Exception as e:
     raise e
 
 # Normalizar columnas
-df.columns = ['codigo', 'tipo', 'medida', 'marca', 'precio']
+df.columns = [c.strip() for c in df.columns]
+df['codigo']      = df['Código'].str.strip()
+df['marca']       = df['Marca'].str.strip().str.upper()
+df['descripcion'] = df['Descripción'].str.strip().str.lower()
+df['precio']      = df['Precio Vta.']
+df['unidad']      = df['UND'].str.strip()
 
-df['tipo'] = df['tipo'].str.lower().str.strip()
-df['marca'] = df['marca'].str.lower().str.strip()
-df['medida'] = df['medida'].str.replace('"', '').str.strip().str.lower()
+# Extraer tipo y medida del código para búsqueda flexible
+# Estructura: PREFIJO-TIPO-MEDIDA (ej: QF-R1-1/2", JDE-4SH-12)
+df['tipo_cod'] = df['codigo'].str.extract(r'^[A-Z]+-([A-Z0-9]+)-', expand=False).str.upper()
+df['medida_cod'] = df['codigo'].str.extract(r'^[A-Z]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
 
-# Estandarizar marca
-df['marca'] = df['marca'].replace({
-    'qf': 'qingflex'
-})
+# Mapa de alias de marca
+MARCA_ALIAS = {
+    'QF': 'QF', 'QINGFLEX': 'QF',
+    'AF': 'AF',
+    'JDE': 'JDEFLEX', 'JDEFLEX': 'JDEFLEX',
+    'VT': 'VITILLO', 'VITILLO': 'VITILLO',
+    'RSY': 'RUNNINGFLEX', 'RUNNINGFLEX': 'RUNNINGFLEX', 'RUNNING': 'RUNNINGFLEX',
+    'SW': 'SWAGGER', 'SWAGGER': 'SWAGGER',
+    'MACTUBI': 'MACTUBI',
+    'HYP': 'HYP',
+}
 
-def buscar_producto(marca, tipo, medida):
-    resultado = df[
-        (df['marca'] == marca) &
-        (df['tipo'] == tipo) &
-        (df['medida'] == medida)
-    ]
+def normalizar_marca(texto):
+    texto = texto.upper().strip()
+    return MARCA_ALIAS.get(texto)
 
+def formatear_resultado(fila, cantidad=1):
+    subtotal = fila['precio'] * cantidad
+    resp = (
+        f"✅ *{fila['codigo']}*\n"
+        f"📋 {fila['descripcion'].title()}\n"
+        f"🏷️ Marca: {fila['marca']}\n"
+        f"💰 Precio: S/ {fila['precio']:.2f} x {fila['unidad']}\n"
+    )
+    if cantidad > 1:
+        resp += f"📦 Cantidad: {cantidad}\n"
+        resp += f"💵 Subtotal: S/ {subtotal:.2f}\n"
+    return resp
+
+def buscar_por_codigo(codigo):
+    """Búsqueda exacta por código"""
+    resultado = df[df['codigo'].str.upper() == codigo.upper()]
     if not resultado.empty:
-        fila = resultado.iloc[0]
+        return resultado.iloc[0]
+    return None
 
-        respuesta = (
-            f"Claro 👍\n\n"
-            f"Manguera hidráulica {tipo.upper()} {medida} {marca.capitalize()}\n"
-            f"💰 Precio: ${fila['precio']:.2f}\n"
-            f"📦 Código: {fila['codigo']}\n"
-        )
+def buscar_por_codigo_parcial(texto):
+    """Búsqueda por código parcial o fragmento"""
+    resultado = df[df['codigo'].str.upper().str.contains(texto.upper(), na=False)]
+    return resultado
 
-        # 🔥 SUGERENCIA (upselling)
-        if tipo == "r1":
-            respuesta += (
-            "\n💡 Recomendación:\n"
-            "Si el equipo tiene mayor exigencia o uso continuo, "
-            "te conviene una versión reforzada de R1 para mayor durabilidad.\n"
-            )   
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None):
+    """Búsqueda flexible por tipo, medida y/o marca"""
+    resultado = df.copy()
 
-        return respuesta
-    else:
-        return (
-            "No encontré ese producto 😕\n\n"
-            "Puede ser por:\n"
-            "• Marca\n"
-            "• Medida\n"
-            "• Tipo\n\n"
-            "Si quieres, dime nuevamente y lo revisamos 👍"
-        )
+    if tipo:
+        resultado = resultado[resultado['tipo_cod'] == tipo.upper()]
+    if marca:
+        resultado = resultado[resultado['marca'] == marca.upper()]
+    if medida:
+        # búsqueda flexible en medida
+        resultado = resultado[
+            resultado['medida_cod'].str.upper().str.contains(
+                re.escape(medida.upper()), na=False
+            )
+        ]
+    return resultado
 
-def interpretar_mensaje(texto):
-    texto = re.sub(r"x\s*\d+", "", texto.lower())
-    
-    # tipo
-    tipo = None
-    if "r1" in texto:
-        tipo = "r1"
-    elif "r2" in texto:
-        tipo = "r2"
-    elif "r6" in texto:
-        tipo = "r6"
+def buscar_por_descripcion(palabras):
+    """Búsqueda por palabras clave en descripción"""
+    resultado = df.copy()
+    for palabra in palabras:
+        resultado = resultado[
+            resultado['descripcion'].str.contains(palabra.lower(), na=False)
+        ]
+    return resultado
 
-    # medida
-    medida = None
-    if re.search(r"\b1/4\b", texto) or "un cuarto" in texto:
-        medida = "1/4"
-    elif re.search(r"\b3/8\b", texto):
-        medida = "3/8"
-    elif re.search(r"\b1/2\b", texto) or "media" in texto:
-        medida = "1/2"
-    elif re.search(r"\b5/8\b", texto):
-        medida = "5/8"
-    elif re.search(r"\b3/4\b", texto):
-        medida = "3/4"
+def extraer_cantidad(texto):
+    match = re.search(r'x\s*(\d+)', texto.lower())
+    return int(match.group(1)) if match else 1
 
-    # marca
+def extraer_descuento(texto):
+    match = re.search(r'descuento\s*(\d+)', texto.lower())
+    return float(match.group(1)) if match else 0
+
+def interpretar_linea(texto):
+    """
+    Extrae marca, tipo, medida y cantidad de una línea de texto.
+    Estrategia: buscar patrones conocidos del catálogo.
+    """
+    original = texto
+    cantidad = extraer_cantidad(texto)
+    texto_limpio = re.sub(r'x\s*\d+', '', texto).strip()
+
+    # 1. Detectar marca
     marca = None
-    if "vitillo" in texto:
-        marca = "vitillo"
-    elif "qf" in texto or "qingflex" in texto:
-        marca = "qingflex"
+    for alias in sorted(MARCA_ALIAS.keys(), key=len, reverse=True):
+        if re.search(r'\b' + alias + r'\b', texto_limpio.upper()):
+            marca = MARCA_ALIAS[alias]
+            break
 
-    return marca, tipo, medida
+    # 2. Detectar tipo (R1, R2, 4SH, 4SP, AIR, GL, DW, etc.)
+    tipo = None
+    # Alias de tipo en lenguaje natural
+    TIPO_ALIAS = {
+        'AIRE': 'AIR', 'AIR': 'AIR', 'AGUA': 'AIR',
+        'GASOLINA': 'GL', 'GAS': 'GL',
+        'VAPOR': 'STEAM', 'STEAM': 'STEAM',
+    }
+    for alias, t in TIPO_ALIAS.items():
+        if re.search(r'\b' + alias + r'\b', texto_limpio.upper()):
+            tipo = t
+            break
 
+    if not tipo:
+        tipos_conocidos = df['tipo_cod'].dropna().unique().tolist()
+        tipos_conocidos.sort(key=len, reverse=True)
+        for t in tipos_conocidos:
+            if re.search(r'\b' + re.escape(t) + r'\b', texto_limpio.upper()):
+                tipo = t
+                break
 
-def obtener_medidas_disponibles(tipo):
-    medidas = df[df['tipo'] == tipo]['medida'].unique()
-    return sorted([m for m in medidas if pd.notna(m)])
+    # 3. Detectar medida (fracciones, pulgadas)
+    medida = None
+    patrones_medida = [
+        r'\d+\s+\d+/\d+',   # ej: 1 1/2
+        r'\d+/\d+',          # ej: 3/4
+        r'\d+"',             # ej: 1"
+        r'\d+\.\d+',         # ej: 1.5
+    ]
+    for patron in patrones_medida:
+        match = re.search(patron, texto_limpio)
+        if match:
+            medida = match.group(0).replace('"', '').strip()
+            break
+
+    return marca, tipo, medida, cantidad
 
 def consultar(texto: str) -> str:
-    # 🔥 detectar múltiples líneas (IMPORTANTE)
-    lineas = [l.strip() for l in texto.split("\n") if l.strip()]
+    lineas = [l.strip() for l in texto.split('\n') if l.strip()]
 
-    # 👉 modo cotización múltiple
     if len(lineas) > 1:
-        respuesta = cotizar_multiple(lineas)
+        return cotizar_multiple(lineas)
 
-        log_consultas.append({
-            "mensaje": texto,
-            "tipo": "multiple",
-            "respuesta": respuesta
-        })
-
-        return respuesta
-
-    # 👉 modo normal (una sola línea)
     texto = lineas[0]
-    marca, tipo, medida = interpretar_mensaje(texto)
+    cantidad = extraer_cantidad(texto)
 
-    # 1. Validar tipo
-    if not tipo:
-        respuesta = (
-            "Te ayudo 👍\n\n"
-            "Indícame el tipo:\n"
-            "• R1\n• R2\n• R6"
-        )
+    # ── Estrategia 1: código exacto ──────────────────────
+    texto_sin_cantidad = re.sub(r'x\s*\d+', '', texto).strip()
+    fila = buscar_por_codigo(texto_sin_cantidad)
+    if fila is not None:
+        log_consultas.append({"mensaje": texto, "tipo": "codigo_exacto"})
+        return formatear_resultado(fila, cantidad)
 
-    # 2. Validar medida
-    elif not medida:
-        medidas = obtener_medidas_disponibles(tipo)
+    # ── Estrategia 2: código parcial ─────────────────────
+    parcial = buscar_por_codigo_parcial(texto_sin_cantidad)
+    if len(parcial) == 1:
+        log_consultas.append({"mensaje": texto, "tipo": "codigo_parcial"})
+        return formatear_resultado(parcial.iloc[0], cantidad)
+    elif len(parcial) > 1 and len(parcial) <= 10:
+        return formatear_lista(parcial, f"Encontré {len(parcial)} productos similares:")
 
-        lista = "\n".join([f"• {m}" for m in medidas])
+    # ── Estrategia 3: tipo + medida + marca ──────────────
+    marca, tipo, medida, cantidad = interpretar_linea(texto)
 
-        respuesta = (
-            f"Te ayudo 👍\n\n"
-            f"Estas son las medidas disponibles en {tipo.upper()}:\n"
-            f"{lista}\n\n"
-            "¿Cuál necesitas?"
-        )
+    if tipo or marca or medida:
+        resultados = buscar_por_tipo_medida_marca(tipo, medida, marca)
 
-    # 3. Buscar producto
-    else:
-        if not marca:
-            respuesta = (
-                "No indicaste marca 👀\n"
-                "Te cotizo Qingflex por defecto:\n\n"
-                + buscar_producto("qingflex", tipo, medida)
+        if len(resultados) == 1:
+            log_consultas.append({"mensaje": texto, "tipo": "filtros"})
+            return formatear_resultado(resultados.iloc[0], cantidad)
+        elif 1 < len(resultados) <= 10:
+            return formatear_lista(resultados, f"Encontré {len(resultados)} opciones:")
+        elif len(resultados) > 10:
+            # Demasiados, pedir más datos
+            detalle = []
+            if not marca:
+                marcas = resultados['marca'].unique()
+                detalle.append(f"Marca: {', '.join(marcas)}")
+            if not medida:
+                medidas = resultados['medida_cod'].dropna().unique()[:8]
+                detalle.append(f"Medida: {', '.join(medidas)}")
+            return (
+                f"Encontré {len(resultados)} productos para *{tipo or ''}*.\n\n"
+                f"¿Puedes especificar más?\n" +
+                '\n'.join(detalle)
             )
-        else:
-            respuesta = buscar_producto(marca, tipo, medida)
 
-    # 🔥 LOG
-    log_consultas.append({
-        "mensaje": texto,
-        "marca": marca,
-        "tipo": tipo,
-        "medida": medida,
-        "respuesta": respuesta
-    })
+    # ── Estrategia 4: palabras clave en descripción ──────
+    palabras = [p for p in texto_sin_cantidad.lower().split() if len(p) > 2]
+    if palabras:
+        resultados = buscar_por_descripcion(palabras)
+        if len(resultados) == 1:
+            return formatear_resultado(resultados.iloc[0], cantidad)
+        elif 1 < len(resultados) <= 10:
+            return formatear_lista(resultados, "Encontré estos productos:")
 
-    return respuesta
+    # ── Sin resultados ───────────────────────────────────
+    log_consultas.append({"mensaje": texto, "tipo": "sin_resultado"})
+    return (
+        "No encontré ese producto 😕\n\n"
+        "Puedes buscar por:\n"
+        "• Código exacto: `QF-R1-1/2\"`\n"
+        "• Tipo y medida: `R1 1/2 QF`\n"
+        "• Descripción: `aire 1/2 negro`\n\n"
+        "¿Cómo lo busco? 👍"
+    )
+
+def formatear_lista(resultados, titulo):
+    resp = f"{titulo}\n\n"
+    for _, fila in resultados.iterrows():
+        resp += f"• *{fila['codigo']}* - {fila['descripcion'].title()} → S/ {fila['precio']:.2f}\n"
+    resp += "\n¿Cuál necesitas? Escribe el código exacto."
+    return resp
 
 def cotizar_multiple(lineas):
     respuesta = "Aquí tienes la cotización 👍\n\n"
-
-    respuesta += "```text\n"
-
-    respuesta += (
-        f"{'Codigo':<15}"
-        f"{'Producto':<20}"
-        f"{'Cant':<8}"
-        f"{'Unit':<10}"
-        f"{'Subtotal':<10}\n"
-    )
-
-    respuesta += "-" * 65 + "\n"
-    
     total = 0
     descuento_pct = 0
-    
-    for i, linea in enumerate(lineas, start=1):
 
-        if "descuento" in linea.lower():
+    for i, linea in enumerate(lineas, start=1):
+        if 'descuento' in linea.lower():
             descuento_pct = extraer_descuento(linea)
             continue
-        
-        marca, tipo, medida = interpretar_mensaje(linea)
-        
+
         cantidad = extraer_cantidad(linea)
+        texto_limpio = re.sub(r'x\s*\d+', '', linea).strip()
 
-        if not tipo or not medida:
-            respuesta += f"{i}️⃣ No entendí: {linea}\n\n"
-            continue
+        # Buscar el producto
+        fila = buscar_por_codigo(texto_limpio)
 
-        if not marca:
-            marca = "qingflex"
+        if fila is None:
+            parcial = buscar_por_codigo_parcial(texto_limpio)
+            if len(parcial) == 1:
+                fila = parcial.iloc[0]
 
-        resultado = df[
-            (df['marca'] == marca) &
-            (df['tipo'] == tipo) &
-            (df['medida'] == medida)
-        ]
+        if fila is None:
+            marca, tipo, medida, cantidad = interpretar_linea(linea)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca)
+            if len(resultados) == 1:
+                fila = resultados.iloc[0]
 
-        if not resultado.empty:
-            fila = resultado.iloc[0]
-
-            precio = fila['precio']
-            subtotal = precio * cantidad
+        if fila is not None:
+            subtotal = fila['precio'] * cantidad
             total += subtotal
-
-            codigo = str(fila['codigo'])
-
-            marca_abrev = {
-                "qingflex": "QF",
-                "vitillo": "VT"
-            }.get(marca, marca[:2].upper())
-
-            nombre_prod = f"{tipo.upper()} {medida} {marca_abrev}"
-
             respuesta += (
-                f"{codigo:<15}"
-                f"{nombre_prod:<20}"
-                f"{cantidad:<8}"
-                f"{precio:<10.2f}"
-                f"{subtotal:<10.2f}\n"
+                f"{i}️⃣ *{fila['codigo']}*\n"
+                f"   {fila['descripcion'].title()}\n"
+                f"   Cant: {cantidad} | S/ {fila['precio']:.2f} c/u | Subtotal: S/ {subtotal:.2f}\n\n"
             )
-            
         else:
-            respuesta += f"{i}️⃣ No encontrado: {linea}\n\n"
+            respuesta += f"{i}️⃣ ❌ No encontrado: `{linea}`\n\n"
 
     descuento_monto = total * (descuento_pct / 100)
     total_final = total - descuento_monto
 
-    respuesta += f"Subtotal: ${total:.2f}\n"
-
+    respuesta += f"─────────────────\n"
+    respuesta += f"Subtotal: S/ {total:.2f}\n"
     if descuento_pct > 0:
-        respuesta += f"Descuento ({descuento_pct:.0f}%): -${descuento_monto:.2f}\n"
+        respuesta += f"Descuento ({descuento_pct:.0f}%): -S/ {descuento_monto:.2f}\n"
+    respuesta += f"*TOTAL: S/ {total_final:.2f}*"
 
-    respuesta += f"Total final: ${total_final:.2f}"
-
-    respuesta += "-" * 65 + "\n"
-    respuesta += f"{'TOTAL FINAL:':<53}{total_final:<10.2f}\n"
-    respuesta += "```"
     return respuesta
-
-def extraer_cantidad(texto):
-    match = re.search(r"x\s*(\d+)", texto.lower())
-    if match:
-        return int(match.group(1))
-    return 1
-
-def extraer_descuento(texto):
-    match = re.search(r"descuento\s*(\d+)", texto.lower())
-
-    if match:
-        return float(match.group(1))
-
-    return 0
