@@ -365,6 +365,25 @@ def consultar(texto: str) -> tuple:
     cantidad = extraer_cantidad(texto)
     texto_sin_cant = re.sub(r'x\s*\d+', '', texto).strip()
 
+    # ── Saludo / bienvenida ───────────────────────────────────────────────────
+    SALUDOS = {"hola", "buenas", "buenos", "hi", "hello", "buenas noches",
+               "buenas tardes", "buenas dias", "buenos dias", "buen dia",
+               "buen día", "buenos días", "buenas noches", "saludos"}
+    texto_norm = texto_sin_cant.lower().strip().rstrip("!.?,")
+    if texto_norm in SALUDOS or all(p in PALABRAS_IGNORADAS for p in texto_norm.split()):
+        logger.info("Saludo detectado — enviando bienvenida")
+        return None, (
+            "¡Hola! 👋 Soy el asistente de *CISGE*.\n\n"
+            "Puedo ayudarte a cotizar mangueras hidráulicas al instante.\n\n"
+            "Búscame por:\n"
+            "• *Código:* QF-R1-1/2\"\n"
+            "• *Tipo y medida:* R1 1/2 QF\n"
+            "• *Descripción:* aire 1/2 negro\n"
+            "• *Nominal:* R12 08 JDE\n\n"
+            "Para cotizar varios productos a la vez, escribe uno por línea 📋\n\n"
+            "¿Qué necesitas cotizar? 💬"
+        )
+
     # ── Estrategia 1: código exacto ───────────────────────────────────────────
     fila = buscar_por_codigo(texto_sin_cant)
     if fila is not None:
