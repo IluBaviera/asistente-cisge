@@ -8,9 +8,9 @@ import os
 app = FastAPI()
 
 # ── tokens de Meta ──────────────────────────────
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")       # token que generaste
-VERIFY_TOKEN   = os.getenv("VERIFY_TOKEN")         # tú lo inventas, ej: "cisge2024"
-PHONE_ID       = os.getenv("PHONE_NUMBER_ID")      # el Phone Number ID de Meta
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+VERIFY_TOKEN   = os.getenv("VERIFY_TOKEN")
+PHONE_ID       = os.getenv("PHONE_NUMBER_ID")
 
 # ── endpoints existentes ─────────────────────────
 @app.get("/")
@@ -26,7 +26,8 @@ class Query(BaseModel):
 
 @app.post("/consultar")
 def consultar_api(query: Query):
-    return {"respuesta": consultar(query.mensaje)}
+    _, respuesta = consultar(query.mensaje)   # ← desempacar (imagen, respuesta)
+    return {"respuesta": respuesta}
 
 # ── webhook Meta ─────────────────────────────────
 @app.get("/webhook")
@@ -40,18 +41,18 @@ def verificar_webhook(request: Request):
 async def recibir_mensaje(request: Request):
     data = await request.json()
     try:
-        mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
-        numero  = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
-        respuesta = consultar(mensaje)
+        mensaje  = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
+        numero   = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
+        _, respuesta = consultar(mensaje)      # ← desempacar (imagen, respuesta)
         await enviar_whatsapp(numero, respuesta)
     except Exception:
         pass
     return {"status": "ok"}
 
 async def enviar_whatsapp(numero: str, texto: str):
-    url = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
+    url     = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
     headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
-    body = {
+    body    = {
         "messaging_product": "whatsapp",
         "to": numero,
         "type": "text",
