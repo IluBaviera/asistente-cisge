@@ -12,6 +12,10 @@ WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 VERIFY_TOKEN   = os.getenv("VERIFY_TOKEN")
 PHONE_ID       = os.getenv("PHONE_NUMBER_ID")
 
+# ── deduplicación de mensajes ────────────────────
+mensajes_procesados: set = set()  # guarda los últimos message_id procesados
+MAX_IDS = 1000                    # límite para no crecer indefinidamente
+
 # ── endpoints existentes ─────────────────────────
 @app.get("/")
 def root():
@@ -41,9 +45,21 @@ def verificar_webhook(request: Request):
 async def recibir_mensaje(request: Request):
     data = await request.json()
     try:
-        mensaje  = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
-        numero   = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
-        _, respuesta = consultar(mensaje)      # ← desempacar (imagen, respuesta)
+        msg      = data["entry"][0]["changes"][0]["value"]["messages"][0]
+        msg_id   = msg["id"]
+        mensaje  = msg["text"]["body"]
+        numero   = msg["from"]
+
+        # Ignorar si ya procesamos este mensaje
+        if msg_id in mensajes_procesados:
+            return {"status": "duplicado"}
+
+        # Registrar y limpiar si es necesario
+        mensajes_procesados.add(msg_id)
+        if len(mensajes_procesados) > MAX_IDS:
+            mensajes_procesados.clear()
+
+        _, respuesta = consultar(mensaje)
         await enviar_whatsapp(numero, respuesta)
     except Exception:
         pass
