@@ -4,6 +4,9 @@ from app.motor import consultar
 from app.motor import log_consultas
 import httpx
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -13,8 +16,8 @@ VERIFY_TOKEN   = os.getenv("VERIFY_TOKEN")
 PHONE_ID       = os.getenv("PHONE_NUMBER_ID")
 
 # ── deduplicación de mensajes ────────────────────
-mensajes_procesados: set = set()  # guarda los últimos message_id procesados
-MAX_IDS = 1000                    # límite para no crecer indefinidamente
+mensajes_procesados: set = set()
+MAX_IDS = 1000
 
 # ── endpoints existentes ─────────────────────────
 @app.get("/")
@@ -30,7 +33,7 @@ class Query(BaseModel):
 
 @app.post("/consultar")
 def consultar_api(query: Query):
-    _, respuesta = consultar(query.mensaje)   # ← desempacar (imagen, respuesta)
+    _, respuesta = consultar(query.mensaje)
     return {"respuesta": respuesta}
 
 # ── webhook Meta ─────────────────────────────────
@@ -45,24 +48,26 @@ def verificar_webhook(request: Request):
 async def recibir_mensaje(request: Request):
     data = await request.json()
     try:
-        msg      = data["entry"][0]["changes"][0]["value"]["messages"][0]
-        msg_id   = msg["id"]
-        mensaje  = msg["text"]["body"]
-        numero   = msg["from"]
+        msg     = data["entry"][0]["changes"][0]["value"]["messages"][0]
+        msg_id  = msg["id"]
+        mensaje = msg["text"]["body"]
+        numero  = msg["from"]
 
-        # Ignorar si ya procesamos este mensaje
+        # Deduplicación
         if msg_id in mensajes_procesados:
+            logger.info(f"Mensaje duplicado ignorado: {msg_id}")
             return {"status": "duplicado"}
 
-        # Registrar y limpiar si es necesario
         mensajes_procesados.add(msg_id)
         if len(mensajes_procesados) > MAX_IDS:
             mensajes_procesados.clear()
 
         _, respuesta = consultar(mensaje)
         await enviar_whatsapp(numero, respuesta)
-    except Exception:
-        pass
+
+    except Exception as e:
+        logger.error(f"Error en webhook: {e}", exc_info=True)
+
     return {"status": "ok"}
 
 async def enviar_whatsapp(numero: str, texto: str):
@@ -75,4 +80,5 @@ async def enviar_whatsapp(numero: str, texto: str):
         "text": {"body": texto}
     }
     async with httpx.AsyncClient() as client:
-        await client.post(url, json=body, headers=headers)
+        r = await client.post(url, json=body, headers=headers)
+        logger.info(f"WhatsApp API response: {r.status_code} {r.text}")
