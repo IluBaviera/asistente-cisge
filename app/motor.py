@@ -171,8 +171,14 @@ def extraer_cantidad(texto: str) -> int:
     return int(match.group(1)) if match else 1
 
 def extraer_descuento(texto: str) -> float:
-    match = re.search(r"descuento\s*(\d+)", texto.lower())
-    return float(match.group(1)) if match else 0.0
+    # Detecta: "descuento 20", "20%", "desc 20"
+    m = re.search(r"descuento\s*(\d+)", texto.lower())
+    if m:
+        return float(m.group(1))
+    m = re.search(r"\b(\d+)\s*%", texto)
+    if m:
+        return float(m.group(1))
+    return 0.0
 
 def normalizar_medida_texto(texto: str) -> str:
     """
@@ -209,9 +215,11 @@ def normalizar_medida_texto(texto: str) -> str:
 
 # ─── FORMATEO ─────────────────────────────────────────────────────────────────
 
-def formatear_resultado(fila, cantidad=1) -> str:
+def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
     precio   = float(fila["precio"])
     subtotal = precio * cantidad
+    desc_monto = subtotal * (descuento / 100)
+    total_final = subtotal - desc_monto
     resp = (
         f"✅ *{fila['codigo']}*\n"
         f"📋 {fila['descripcion'].title()}\n"
@@ -221,6 +229,9 @@ def formatear_resultado(fila, cantidad=1) -> str:
     if cantidad > 1:
         resp += f"📦 Cantidad: {cantidad}\n"
         resp += f"💵 Subtotal: ${subtotal:.2f}\n"
+    if descuento > 0:
+        resp += f"🏷️ Descuento: {descuento:.0f}% (-${desc_monto:.2f})\n"
+        resp += f"💵 *Total: ${total_final:.2f}*\n"
     return resp
 
 def formatear_lista(resultados: pd.DataFrame, titulo: str) -> str:
@@ -367,7 +378,9 @@ def consultar(texto: str) -> tuple:
 
     texto = lineas[0]
     cantidad = extraer_cantidad(texto)
+    descuento = extraer_descuento(texto)
     texto_sin_cant = re.sub(r'x\s*\d+', '', texto).strip()
+    texto_sin_cant = re.sub(r'\b\d+\s*%', '', texto_sin_cant).strip()
 
     # ── Saludo / bienvenida ───────────────────────────────────────────────────
     SALUDOS = {"hola", "buenas", "buenos", "hi", "hello", "buenas noches",
@@ -395,7 +408,7 @@ def consultar(texto: str) -> tuple:
         log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_exacto"})
         tipo_cod = str(fila.get("tipo_cod", "") or "").lower()
         imagen = _ruta_imagen(tipo_cod)
-        return imagen, formatear_resultado(fila, cantidad)
+        return imagen, formatear_resultado(fila, cantidad, descuento)
 
     # ── Estrategia 2: código parcial ──────────────────────────────────────────
     parcial = buscar_por_codigo_parcial(texto_sin_cant)
@@ -404,7 +417,7 @@ def consultar(texto: str) -> tuple:
         log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_parcial"})
         tipo_cod = str(parcial.iloc[0].get("tipo_cod", "") or "").lower()
         imagen = _ruta_imagen(tipo_cod)
-        return imagen, formatear_resultado(parcial.iloc[0], cantidad)
+        return imagen, formatear_resultado(parcial.iloc[0], cantidad, descuento)
     elif 1 < len(parcial) <= 10:
         return None, formatear_lista(parcial, f"Encontré {len(parcial)} productos similares:")
 
@@ -428,7 +441,7 @@ def consultar(texto: str) -> tuple:
             log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "filtros",
                                    "marca": marca, "tipo": tipo, "medida": medida})
             imagen = _ruta_imagen((tipo or "").lower())
-            return imagen, formatear_resultado(resultados.iloc[0], cantidad)
+            return imagen, formatear_resultado(resultados.iloc[0], cantidad, descuento)
 
         elif 1 < len(resultados) <= 12:
             return None, formatear_lista(resultados, f"Encontré {len(resultados)} opciones:")
@@ -456,7 +469,7 @@ def consultar(texto: str) -> tuple:
     if palabras:
         resultados = buscar_por_descripcion(palabras)
         if len(resultados) == 1:
-            return None, formatear_resultado(resultados.iloc[0], cantidad)
+            return None, formatear_resultado(resultados.iloc[0], cantidad, descuento)
         elif 1 < len(resultados) <= 12:
             return None, formatear_lista(resultados, "Encontré estos productos:")
 
