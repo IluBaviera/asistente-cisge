@@ -488,15 +488,16 @@ def consultar(texto: str) -> tuple:
 # ─── COTIZACIÓN MÚLTIPLE ──────────────────────────────────────────────────────
 
 def cotizar_multiple(lineas: list) -> str:
-    respuesta    = "📋 *Cotización CISGE*\n─────────────────────\n\n"
-    total        = 0.0
-    descuento_pct = 0.0
-    hay_error    = False
+    respuesta     = "📋 *Cotización CISGE*\n─────────────────────\n\n"
+    subtotal_bruto = 0.0
+    total_descuentos = 0.0
+    descuento_global = 0.0
+    hay_error     = False
 
     for i, linea in enumerate(lineas, start=1):
-        # Detectar línea de descuento
-        if "descuento" in linea.lower():
-            descuento_pct = extraer_descuento(linea)
+        # Detectar línea de descuento global
+        if "descuento" in linea.lower() and not re.search(r'x\s*\d+', linea.lower()):
+            descuento_global = extraer_descuento(linea)
             continue
 
         cantidad       = extraer_cantidad(linea)
@@ -529,34 +530,35 @@ def cotizar_multiple(lineas: list) -> str:
                     fila = resultados.iloc[0]
 
         if fila is not None:
-            precio     = float(fila["precio"])
-            subtotal   = precio * cantidad
-            pct        = desc_linea if desc_linea > 0 else 0.0
-            desc_monto = subtotal * (pct / 100)
-            neto       = subtotal - desc_monto
-            total     += neto
-            desc_txt   = fila['descripcion'].title()[:45]
-            linea_resp = (
+            precio      = float(fila["precio"])
+            subtotal    = precio * cantidad
+            pct         = desc_linea
+            desc_monto  = subtotal * (pct / 100)
+            subtotal_bruto   += subtotal
+            total_descuentos += desc_monto
+            desc_txt    = fila['descripcion'].title()[:45]
+            linea_resp  = (
                 f"{i}️⃣ *{fila['codigo']}* — {desc_txt}\n"
-                f"   x{cantidad} × ${precio:.2f} = ${subtotal:.2f}"
+                f"   x{cantidad} × ${precio:.2f} | Subtotal: ${subtotal:.2f}"
             )
             if pct > 0:
-                linea_resp += f" (-{pct:.0f}%) = *${neto:.2f}*"
-            else:
-                linea_resp += f" = *${subtotal:.2f}*"
+                linea_resp += f" | Desc {pct:.0f}%: -${desc_monto:.2f}"
             respuesta += linea_resp + "\n\n"
         else:
             respuesta += f"{i}️⃣ ❌ _{linea}_\n\n"
             hay_error = True
 
-    descuento_monto = total * (descuento_pct / 100)
-    total_final     = total - descuento_monto
+    # Descuento global sobre el subtotal neto
+    subtotal_neto   = subtotal_bruto - total_descuentos
+    desc_global_monto = subtotal_neto * (descuento_global / 100)
+    total_final     = subtotal_neto - desc_global_monto
+    total_descuentos += desc_global_monto
 
     respuesta += "─────────────────────\n"
-    if descuento_pct > 0:
-        respuesta += f"Subtotal: ${total:.2f}\n"
-        respuesta += f"Descuento ({descuento_pct:.0f}%): -${descuento_monto:.2f}\n"
-    respuesta += f"💵 *TOTAL: ${total_final:.2f}*"
+    respuesta += f"Subtotal:    ${subtotal_bruto:.2f}\n"
+    if total_descuentos > 0:
+        respuesta += f"Descuentos:  -${total_descuentos:.2f}\n"
+    respuesta += f"💵 *TOTAL:   ${total_final:.2f}*"
 
     if hay_error:
         respuesta += "\n\n_(*) Algunos ítems no encontrados. Escríbeme para revisar._"
