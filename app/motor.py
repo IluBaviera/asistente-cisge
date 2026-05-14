@@ -254,13 +254,17 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None) -> pd.DataF
     if marca:
         r = r[r["marca"].str.upper() == marca.upper()]
     if medida:
-        # Búsqueda directa por fracción/entero
-        mascara = r["medida_cod"].str.upper().str.contains(re.escape(medida.upper()), na=False)
+        # Match exacto: normalizar medida_cod y comparar
+        # Ej: "1/2"" → "1/2", "1 1/2"" → "1 1/2" (sin comillas, sin espacios extra)
+        medida_norm = medida.upper().strip().rstrip('"').strip()
+        medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
+        mascara = medida_cod_norm == medida_norm
+
         # Si no hay resultados, intentar también por nominal equivalente
         # (algunos códigos JDE/HYP guardan la medida como "08", "12", etc.)
         if not mascara.any():
             nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
-            nominal = nominal_inv.get(medida)
+            nominal = nominal_inv.get(medida.strip().rstrip('"').strip())
             if nominal:
                 mascara = r["medida_cod"].str.strip() == nominal
         r = r[mascara]
