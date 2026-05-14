@@ -500,7 +500,9 @@ def cotizar_multiple(lineas: list) -> str:
             continue
 
         cantidad       = extraer_cantidad(linea)
+        desc_linea     = extraer_descuento(linea)
         texto_sin_cant = re.sub(r'x\s*\d+', '', linea).strip()
+        texto_sin_cant = re.sub(r'\b\d+\s*%', '', texto_sin_cant).strip()
 
         fila = None
 
@@ -527,14 +529,22 @@ def cotizar_multiple(lineas: list) -> str:
                     fila = resultados.iloc[0]
 
         if fila is not None:
-            precio   = float(fila["precio"])
-            subtotal = precio * cantidad
-            total   += subtotal
-            desc     = fila['descripcion'].title()[:45]
-            respuesta += (
-                f"{i}️⃣ *{fila['codigo']}* — {desc}\n"
-                f"   x{cantidad} × ${precio:.2f} = *${subtotal:.2f}*\n\n"
+            precio     = float(fila["precio"])
+            subtotal   = precio * cantidad
+            pct        = desc_linea if desc_linea > 0 else 0.0
+            desc_monto = subtotal * (pct / 100)
+            neto       = subtotal - desc_monto
+            total     += neto
+            desc_txt   = fila['descripcion'].title()[:45]
+            linea_resp = (
+                f"{i}️⃣ *{fila['codigo']}* — {desc_txt}\n"
+                f"   x{cantidad} × ${precio:.2f} = ${subtotal:.2f}"
             )
+            if pct > 0:
+                linea_resp += f" (-{pct:.0f}%) = *${neto:.2f}*"
+            else:
+                linea_resp += f" = *${subtotal:.2f}*"
+            respuesta += linea_resp + "\n\n"
         else:
             respuesta += f"{i}️⃣ ❌ _{linea}_\n\n"
             hay_error = True
