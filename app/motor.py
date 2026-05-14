@@ -115,6 +115,15 @@ TIPO_ALIAS = {
     "alta temp":        "HT",
     "hightemp":         "HT",
     "ht":               "HT",
+    # VITILLO Everest alta presión
+    "tser":             "TSER",
+    "everest":          "TSER",
+    "4000 psi":         "TSER",
+    "4000psi":          "TSER",
+    "5000 psi":         "TSER",
+    "5000psi":          "TSER",
+    "6000 psi":         "TSER",
+    "6000psi":          "TSER",
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
@@ -147,8 +156,15 @@ try:
 
     # Extraer tipo y medida del código
     # Patrón estándar: PREFIJO-TIPO-MEDIDA (ej: QF-R1-1/2", JDE-4SH-12)
-    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z0-9]+)-', expand=False).str.upper()
+    # También captura PREFIJO-TIPOMED (ej: VT-TSER420)
+    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+)', expand=False).str.upper()
     df["medida_cod"] = df["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
+
+    # Para VITILLO TSER/EVEREST: extraer medida de la descripción
+    mask_tser = df["tipo_cod"].str.startswith("TSER", na=False) & df["medida_cod"].isna()
+    df.loc[mask_tser, "medida_cod"] = df.loc[mask_tser, "descripcion"].str.extract(
+        r'(\d+\s*\d*/\d+\"?|\d+\")', expand=False
+    ).str.strip()
 
     # Para códigos HYP con formato TFxxx-tipo-nominal, extraer igual
     # Ej: TFS0012-06 → tipo=R12 (inferido), nominal=06
@@ -257,11 +273,13 @@ def buscar_por_codigo_parcial(texto: str) -> pd.DataFrame:
     """Búsqueda por fragmento de código."""
     return df[df["codigo"].str.upper().str.contains(re.escape(texto.upper()), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     if tipo:
         r = r[r["tipo_cod"].str.upper() == tipo.upper()]
+    if presion:
+        r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
     if marca:
         r = r[r["marca"].str.upper() == marca.upper()]
     if medida:
@@ -292,12 +310,18 @@ def buscar_por_descripcion(palabras: list) -> pd.DataFrame:
 
 def interpretar_linea(texto: str) -> tuple:
     """
-    Extrae (marca, tipo, medida, color, cantidad) del texto libre del cliente.
+    Extrae (marca, tipo, medida, color, cantidad, presion) del texto libre del cliente.
     """
     cantidad  = extraer_cantidad(texto)
     texto_lim = re.sub(r'x\s*\d+', '', texto).strip()
     texto_up  = texto_lim.upper()
     texto_lo  = normalizar_medida_texto(texto_lim.lower())
+
+    # ── Presión (para mangueras TSER/Everest) ────────────────────────────────
+    presion = None
+    m_psi = re.search(r'\b(\d{4})\s*psi\b', texto_lo)
+    if m_psi:
+        presion = m_psi.group(1)
 
     # ── Marca ─────────────────────────────────────────────────────────────────
     marca = None
@@ -360,8 +384,8 @@ def interpretar_linea(texto: str) -> tuple:
         if m:
             medida = m.group(1)
 
-    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad}")
-    return marca, tipo, medida, color, cantidad
+    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion}")
+    return marca, tipo, medida, color, cantidad, presion
 
 # ─── CONSULTA SIMPLE ──────────────────────────────────────────────────────────
 
@@ -422,7 +446,7 @@ def consultar(texto: str) -> tuple:
         return None, formatear_lista(parcial, f"Encontré {len(parcial)} productos similares:")
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
-    marca, tipo, medida, color, cantidad = interpretar_linea(texto)
+    marca, tipo, medida, color, cantidad, presion = interpretar_linea(texto)
 
     if tipo or marca or medida:
         # Construir medida con color si aplica (ej: "1/2" N" → buscar "1/2" N")
@@ -430,11 +454,11 @@ def consultar(texto: str) -> tuple:
         if color and medida:
             medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
 
-        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca)
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion)
 
         # Si con color no encontró, intentar sin color
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion)
 
         if len(resultados) == 1:
             logger.info(f"Match por filtros: {resultados.iloc[0]['codigo']}")
@@ -518,14 +542,14 @@ def cotizar_multiple(lineas: list) -> str:
 
         # 3. Tipo + medida + marca
         if fila is None:
-            marca, tipo, medida, color, cantidad = interpretar_linea(linea)
+            marca, tipo, medida, color, cantidad, presion = interpretar_linea(linea)
             if tipo or marca or medida:
                 medida_busq = medida
                 if color and medida:
                     medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
-                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca)
+                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion)
                 if resultados.empty and color:
-                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca)
+                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion)
                 if len(resultados) == 1:
                     fila = resultados.iloc[0]
 
