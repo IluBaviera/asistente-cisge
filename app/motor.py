@@ -517,13 +517,13 @@ def cotizar_multiple(lineas: list) -> str:
             precio   = float(fila["precio"])
             subtotal = precio * cantidad
             total   += subtotal
+            desc     = fila['descripcion'].title()[:45]
             respuesta += (
-                f"{i}️⃣ *{fila['codigo']}*\n"
-                f"   {fila['descripcion'].title()[:55]}\n"
-                f"   x{cantidad} | ${precio:.2f} c/u | *${subtotal:.2f}*\n\n"
+                f"{i}️⃣ *{fila['codigo']}* — {desc}\n"
+                f"   x{cantidad} × ${precio:.2f} = *${subtotal:.2f}*\n\n"
             )
         else:
-            respuesta += f"{i}️⃣ ❌ No encontrado: _{linea}_\n\n"
+            respuesta += f"{i}️⃣ ❌ _{linea}_\n\n"
             hay_error = True
 
     descuento_monto = total * (descuento_pct / 100)
