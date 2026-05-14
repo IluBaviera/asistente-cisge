@@ -148,7 +148,7 @@ TIPO_SAE_MAP = {
     "R2":  ["R2", "TH"],       # R2 también en TH de VITILLO
     "R12": ["R12", "TSR"],     # R12 puede ser R12 o TSR (VITILLO TSR12xx)
     "R13": ["TSR"],            # R13 = TSR (VITILLO TSR13xx)
-    "R15": ["TSR"],            # R15 = TSR (VITILLO TSR15xx)
+    "R15": ["R15", "TSR"],     # R15 directo (JDE/QF) y TSR15xx (VITILLO)
     "4SH": ["4SH", "TS"],      # 4SH puede ser 4SH o TS (VITILLO Teknospir)
     "4SP": ["4SP", "TS"],      # 4SP también en TS de VITILLO
     "R4":  ["R"],              # R4 usa prefijo R en AF
@@ -312,8 +312,13 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         mascara_tipo = r["tipo_cod"].str.upper().isin(tipos_posibles)
         # Para tipos que comparten tipo_cod TSR (R12/R13/R15) o R (R4/R6):
         # filtrar también por descripción
-        if tipo_up in ("R4", "R6", "R13", "R15"):
+        if tipo_up in ("R4", "R6", "R13"):
             mascara_tipo = mascara_tipo & r["descripcion"].str.contains(tipo_up, na=False, case=False)
+        elif tipo_up == "R15":
+            # R15 directo ya está correcto; TSR necesita filtrar por descripción
+            mascara_tsr15 = (r["tipo_cod"].str.upper() == "TSR") & r["descripcion"].str.contains("R15", na=False, case=False)
+            mascara_r15_directo = r["tipo_cod"].str.upper() == "R15"
+            mascara_tipo = mascara_r15_directo | mascara_tsr15
         elif tipo_up == "R12":
             # R12 puede estar en tipo_cod R12 directo O en TSR12xx
             mascara_tsr12 = r["tipo_cod"].str.upper() == "TSR"
