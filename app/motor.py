@@ -124,6 +124,34 @@ TIPO_ALIAS = {
     "5000psi":          "TSER",
     "6000 psi":         "TSER",
     "6000psi":          "TSER",
+    # Estándares SAE/ISO hidráulicos
+    "r1":               "R1",
+    "r2":               "R2",
+    "r3":               "R3",
+    "r4":               "R4",
+    "r5":               "R5",
+    "r6":               "R6",
+    "r7":               "R7",
+    "r9":               "R9",
+    "r13":              "R13",
+    "r15":              "R15",
+    "4sh":              "4SH",
+    "4sp":              "4SP",
+    "2sn":              "R2",   # alias común en campo
+    "1sn":              "R1",   # alias común en campo
+}
+
+# Tipos SAE que pueden tener múltiples tipo_cod en BD
+# (cuando un tipo SAE corresponde a varios códigos de proveedor)
+TIPO_SAE_MAP = {
+    "R1":  ["R1", "TH"],       # R1 puede ser R1 (QF/JDE) o TH (VITILLO)
+    "R2":  ["R2", "TH"],       # R2 también en TH de VITILLO
+    "R12": ["R12", "TSR"],     # R12 puede ser R12 o TSR (VITILLO)
+    "4SH": ["4SH", "TS"],      # 4SH puede ser 4SH o TS (VITILLO Teknospir)
+    "4SP": ["4SP", "TS"],      # 4SP también en TS de VITILLO
+    "R4":  ["R"],              # R4 usa prefijo R en AF
+    "R6":  ["R"],              # R6 también usa prefijo R en AF
+    "R15": ["TSER"],           # R15 = TSER (VITILLO Everest)
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
@@ -277,7 +305,14 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     if tipo:
-        r = r[r["tipo_cod"].str.upper() == tipo.upper()]
+        tipo_up = tipo.upper()
+        # Verificar si hay múltiples tipo_cod posibles para este tipo SAE
+        tipos_posibles = TIPO_SAE_MAP.get(tipo_up, [tipo_up])
+        mascara_tipo = r["tipo_cod"].str.upper().isin(tipos_posibles)
+        # Para R4/R6: filtrar también por descripción porque comparten tipo_cod R
+        if tipo_up in ("R4", "R6"):
+            mascara_tipo = mascara_tipo & r["descripcion"].str.contains(tipo_up, na=False, case=False)
+        r = r[mascara_tipo]
     if presion:
         r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
     if marca:
