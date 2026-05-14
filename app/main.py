@@ -48,7 +48,10 @@ def verificar_webhook(request: Request):
 async def recibir_mensaje(request: Request):
     data = await request.json()
     try:
-        msg     = data["entry"][0]["changes"][0]["value"]["messages"][0]
+        value = data["entry"][0]["changes"][0]["value"]
+        if "messages" not in value:
+            return {"status": "ok"}
+        msg = value["messages"][0]
         msg_id  = msg["id"]
         mensaje = msg["text"]["body"]
         numero  = msg["from"]

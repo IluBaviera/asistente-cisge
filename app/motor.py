@@ -393,7 +393,8 @@ def consultar(texto: str) -> tuple:
     if fila is not None:
         logger.info(f"Código exacto: {fila['codigo']}")
         log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_exacto"})
-        imagen = _ruta_imagen(fila.get("tipo_cod", "").lower())
+        tipo_cod = str(fila.get("tipo_cod", "") or "").lower()
+        imagen = _ruta_imagen(tipo_cod)
         return imagen, formatear_resultado(fila, cantidad)
 
     # ── Estrategia 2: código parcial ──────────────────────────────────────────
@@ -401,7 +402,8 @@ def consultar(texto: str) -> tuple:
     if len(parcial) == 1:
         logger.info(f"Código parcial único: {parcial.iloc[0]['codigo']}")
         log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_parcial"})
-        imagen = _ruta_imagen(parcial.iloc[0].get("tipo_cod", "").lower())
+        tipo_cod = str(parcial.iloc[0].get("tipo_cod", "") or "").lower()
+        imagen = _ruta_imagen(tipo_cod)
         return imagen, formatear_resultado(parcial.iloc[0], cantidad)
     elif 1 < len(parcial) <= 10:
         return None, formatear_lista(parcial, f"Encontré {len(parcial)} productos similares:")
