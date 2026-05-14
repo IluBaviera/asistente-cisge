@@ -151,7 +151,7 @@ try:
     df["codigo"]      = df["Código"].astype(str).str.strip()
     df["marca"]       = df["Marca"].astype(str).str.strip().str.upper()
     df["descripcion"] = df["Descripción"].astype(str).str.strip().str.lower()
-    df["precio"]      = pd.to_numeric(df["Precio Vta."], errors="coerce")
+    df["precio"]      = pd.to_numeric(df["Valor Vta."], errors="coerce")
     df["unidad"]      = df["UND"].astype(str).str.strip()
 
     # Extraer tipo y medida del código
@@ -319,7 +319,6 @@ def interpretar_linea(texto: str) -> tuple:
 
     # ── Presión (para mangueras TSER/Everest) ────────────────────────────────
     presion = None
-    # Detecta: "4000 psi", "5000psi", o solo "4000"/"5000"/"6000" con contexto everest
     m_psi = re.search(r'\b(\d{4})\s*(?:psi)?\b', texto_lo)
     if m_psi and m_psi.group(1) in ("4000", "5000", "6000"):
         presion = m_psi.group(1)
@@ -373,7 +372,7 @@ def interpretar_linea(texto: str) -> tuple:
             medida = m.group(1)
 
     # Nominal de 2 dígitos: 08, 12, 16 (solo si parece nominal, no año u otro)
-    # Excluir números seguidos de % (descuentos) y presiones (4000, 5000, 6000)
+    # Excluir números seguidos de % (descuentos)
     if not medida:
         texto_sin_pct = re.sub(r'\d+\s*%', '', texto_lo)
         m = re.search(r'\b(0[2-9]|[1-6]\d)\b', texto_sin_pct)
