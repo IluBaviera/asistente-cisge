@@ -372,8 +372,10 @@ def interpretar_linea(texto: str) -> tuple:
             medida = m.group(1)
 
     # Nominal de 2 dígitos: 08, 12, 16 (solo si parece nominal, no año u otro)
+    # Excluir números seguidos de % (descuentos)
     if not medida:
-        m = re.search(r'\b(0[2-9]|[1-6]\d)\b', texto_lo)
+        texto_sin_pct = re.sub(r'\d+\s*%', '', texto_lo)
+        m = re.search(r'\b(0[2-9]|[1-6]\d)\b', texto_sin_pct)
         if m and m.group(1) in MEDIDA_NOMINAL:
             medida = MEDIDA_NOMINAL[m.group(1)]
             logger.debug(f"  nominal '{m.group(1)}' → medida '{medida}'")
