@@ -115,7 +115,7 @@ TIPO_ALIAS = {
     "alta temp":        "HT",
     "hightemp":         "HT",
     "ht":               "HT",
-    # VITILLO Everest alta presión
+    # VITILLO Everest isobárica (producto distinto al R15)
     "tser":             "TSER",
     "everest":          "TSER",
     "4000 psi":         "TSER",
@@ -134,7 +134,7 @@ TIPO_ALIAS = {
     "r7":               "R7",
     "r9":               "R9",
     "r13":              "R13",
-    "r15":              "R15",
+    "r15":              "R15",  # R15 SAE → TSR15xx (no confundir con TSER/Everest)
     "4sh":              "4SH",
     "4sp":              "4SP",
     "2sn":              "R2",   # alias común en campo
@@ -146,12 +146,13 @@ TIPO_ALIAS = {
 TIPO_SAE_MAP = {
     "R1":  ["R1", "TH"],       # R1 puede ser R1 (QF/JDE) o TH (VITILLO)
     "R2":  ["R2", "TH"],       # R2 también en TH de VITILLO
-    "R12": ["R12", "TSR"],     # R12 puede ser R12 o TSR (VITILLO)
+    "R12": ["R12", "TSR"],     # R12 puede ser R12 o TSR (VITILLO TSR12xx)
+    "R13": ["TSR"],            # R13 = TSR (VITILLO TSR13xx)
+    "R15": ["TSR"],            # R15 = TSR (VITILLO TSR15xx)
     "4SH": ["4SH", "TS"],      # 4SH puede ser 4SH o TS (VITILLO Teknospir)
     "4SP": ["4SP", "TS"],      # 4SP también en TS de VITILLO
     "R4":  ["R"],              # R4 usa prefijo R en AF
     "R6":  ["R"],              # R6 también usa prefijo R en AF
-    "R15": ["TSER"],           # R15 = TSER (VITILLO Everest)
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
@@ -309,9 +310,16 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         # Verificar si hay múltiples tipo_cod posibles para este tipo SAE
         tipos_posibles = TIPO_SAE_MAP.get(tipo_up, [tipo_up])
         mascara_tipo = r["tipo_cod"].str.upper().isin(tipos_posibles)
-        # Para R4/R6: filtrar también por descripción porque comparten tipo_cod R
-        if tipo_up in ("R4", "R6"):
+        # Para tipos que comparten tipo_cod TSR (R12/R13/R15) o R (R4/R6):
+        # filtrar también por descripción
+        if tipo_up in ("R4", "R6", "R13", "R15"):
             mascara_tipo = mascara_tipo & r["descripcion"].str.contains(tipo_up, na=False, case=False)
+        elif tipo_up == "R12":
+            # R12 puede estar en tipo_cod R12 directo O en TSR12xx
+            mascara_tsr12 = r["tipo_cod"].str.upper() == "TSR"
+            mascara_tsr12 = mascara_tsr12 & r["descripcion"].str.contains("R12", na=False, case=False)
+            mascara_r12_directo = r["tipo_cod"].str.upper() == "R12"
+            mascara_tipo = mascara_r12_directo | mascara_tsr12
         r = r[mascara_tipo]
     if presion:
         r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
