@@ -276,11 +276,14 @@ def normalizar_medida_texto(texto: str) -> str:
 
 # ─── FORMATEO ─────────────────────────────────────────────────────────────────
 
+IGV = 0.18
+
 def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
     precio   = float(fila["precio"])
     subtotal = precio * cantidad
     desc_monto = subtotal * (descuento / 100)
     total_final = subtotal - desc_monto
+    total_igv   = total_final * (1 + IGV)
     resp = (
         f"✅ *{fila['codigo']}*\n"
         f"📋 {fila['descripcion'].title()}\n"
@@ -292,7 +295,8 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
         resp += f"💵 Subtotal: ${subtotal:.2f}\n"
     if descuento > 0:
         resp += f"🏷️ Descuento: {descuento:.0f}% (-${desc_monto:.2f})\n"
-        resp += f"💵 *Total: ${total_final:.2f}*\n"
+        resp += f"💵 Total s/IGV: ${total_final:.2f}\n"
+    resp += f"🧾 *Total c/IGV: ${total_igv:.2f}*\n"
     return resp
 
 def formatear_lista(resultados: pd.DataFrame, titulo: str) -> str:
@@ -697,11 +701,14 @@ def cotizar_multiple(lineas: list) -> str:
     total_final     = subtotal_neto - desc_global_monto
     total_descuentos += desc_global_monto
 
+    total_igv = total_final * (1 + IGV)
+
     respuesta += "─────────────────────\n"
-    respuesta += f"Subtotal:    ${subtotal_bruto:.2f}\n"
+    respuesta += f"Subtotal:       ${subtotal_bruto:.2f}\n"
     if total_descuentos > 0:
-        respuesta += f"Descuentos:  -${total_descuentos:.2f}\n"
-    respuesta += f"💵 *TOTAL:   ${total_final:.2f}*"
+        respuesta += f"Descuentos:     -${total_descuentos:.2f}\n"
+    respuesta += f"Total s/IGV:    ${total_final:.2f}\n"
+    respuesta += f"🧾 *Total c/IGV: ${total_igv:.2f}*"
 
     if hay_error:
         respuesta += "\n\n_(*) Algunos ítems no encontrados. Escríbeme para revisar._"
