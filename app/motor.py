@@ -518,6 +518,7 @@ def consultar(texto: str) -> tuple:
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
     marca, tipo, medida, color, cantidad, presion, linea = interpretar_linea(texto)
+    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion}")
 
     # Líneas exclusivas → forzar marca automáticamente
     if linea == "exact":
