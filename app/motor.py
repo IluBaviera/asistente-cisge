@@ -158,13 +158,19 @@ TIPO_SAE_MAP = {
 # ─── LÍNEAS PREMIUM (modificadores, no tipos) ───────────────────────────────
 # Estas líneas son versiones mejoradas que aplican a múltiples tipos SAE
 LINEA_ALIAS = {
-    "exactflex":   "exact",
-    "exact flex":  "exact",
-    "shieldflex":  "shield",
-    "shield flex": "shield",
-    "shield":      "shield",
-    "teknospir":   "teknospir",
-    "tekno":       "tekno",
+    "exactflex":        "exact",
+    "exact flex":       "exact",
+    "exact":            "exact",
+    "shieldflex":       "shield",
+    "shield flex":      "shield",
+    "shield":           "shield",
+    "teknospir":        "teknospir",
+    "tekno":            "tekno",
+    # Variantes MACTUBI R7
+    "no conductiva":    "no conductiva",
+    "no conductivo":    "no conductiva",
+    "alto rendimiento": "alto rendimiento",
+    "twin":             "twin",
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
@@ -351,16 +357,13 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
         mascara = medida_cod_norm == medida_norm
 
-        # Si no hay resultados, intentar por nominal equivalente
+        # Si no hay resultados, intentar también por nominal equivalente
+        # (algunos códigos JDE/HYP guardan la medida como "08", "12", etc.)
         if not mascara.any():
             nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
             nominal = nominal_inv.get(medida.strip().rstrip('"').strip())
             if nominal:
                 mascara = r["medida_cod"].str.strip() == nominal
-        # Si aún no hay resultados, intentar match parcial al inicio
-        # (ej: medida_cod="1/4\" R" debe matchear medida="1/4")
-        if not mascara.any():
-            mascara = r["medida_cod"].str.upper().str.startswith(medida_norm)
         r = r[mascara]
     return r
 
@@ -526,6 +529,8 @@ def consultar(texto: str) -> tuple:
     # Líneas exclusivas → forzar marca automáticamente
     if linea == "exact":
         marca = "JDEFLEX"
+    if linea in ("no conductiva", "alto rendimiento", "twin"):
+        marca = "MACTUBI"
     # Everest es exclusivo de VITILLO (ya mapeado a TSER en TIPO_ALIAS)
     if tipo == "TSER" and not marca:
         marca = "VITILLO"
