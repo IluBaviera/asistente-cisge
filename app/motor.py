@@ -173,7 +173,6 @@ COLOR_ALIAS = {
     "negro":    "N",
     "rojo":     "R",
     "azul":     "S",    # algunos códigos usan S para azul/especial
-    "epdm":     "EPDM",
 }
 
 # ─── PALABRAS IGNORADAS PARA DETECCIÓN DE CÓDIGO ──────────────────────────────
@@ -552,10 +551,9 @@ def consultar(texto: str) -> tuple:
         epdm = "EPDM" if re.search(r'\bepdm\b', texto.lower()) else ""
         if color and medida:
             base = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
-            medida_busq = f'{base} {epdm}'.strip() if epdm else base
+            medida_busq = f'{base} {epdm}'.strip() if epdm and epdm not in base else base
 
          # Si con color no encontró, intentar sin color
-        logger.info(f'medida_busq={medida_busq!r} color={color!r} epdm={epdm!r}')
         if 'resultados' not in dir() or resultados is None:
             resultados = __import__('pandas').DataFrame()
         if resultados.empty and color and medida:
