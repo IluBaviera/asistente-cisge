@@ -115,6 +115,10 @@ TIPO_ALIAS = {
     "alta temp":        "HT",
     "hightemp":         "HT",
     "ht":               "HT",
+    "r1 ht":            "HT",   # R1 alta temperatura → HT 1SN
+    "r2 ht":            "HT",   # R2 alta temperatura → HT 2SN
+    "ht r1":            "HT",
+    "ht r2":            "HT",
     # VITILLO Everest isobárica (producto distinto al R15)
     "tser":             "TSER",
     "everest":          "TSER",
@@ -185,6 +189,9 @@ COLOR_ALIAS = {
     "rojo":     "R",
     "azul":     "S",    # algunos códigos usan S para azul/especial
     "epdm":     "EPDM",
+    # Subtipos HT (alta temperatura QF)
+    "2sn":      "2SN",
+    "1sn":      "1SN",
 }
 
 # ─── PALABRAS IGNORADAS PARA DETECCIÓN DE CÓDIGO ──────────────────────────────
@@ -372,6 +379,9 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         # (ej: medida_cod="3/4\" R" o "3/4\"S" debe matchear medida="3/4")
         if not mascara.any():
             mascara = r["medida_cod"].str.upper().str.startswith(medida_norm)
+        # Para HT: medida_cod tiene formato "2SN-1/4\"" → buscar fracción dentro
+        if not mascara.any():
+            mascara = r["medida_cod"].str.upper().str.contains(re.escape(medida_norm), na=False)
         r = r[mascara]
     return r
 
