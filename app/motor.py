@@ -92,7 +92,9 @@ TIPO_ALIAS = {
     "car wash":         "R2CW",
     "lavado auto":      "R2CW",
     "lavado":           "R2CW",
-    "lisa":             "R1S",        # fallback — puede ser R1S o R2S
+    "lisa":             "R1S",
+    "smooth":           "R1S",
+    "r1s":              "R1S",
     "trenzada":         "R1",
     "trenzado":         "R1",
     "espiral":          "R12",
@@ -197,7 +199,7 @@ try:
     # Extraer tipo y medida del código
     # Patrón estándar: PREFIJO-TIPO-MEDIDA (ej: QF-R1-1/2", JDE-4SH-12)
     # También captura PREFIJO-TIPOMED (ej: VT-TSER420)
-    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+\d*)', expand=False).str.upper()
+    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+\d*[A-Z]*)', expand=False).str.upper()
     df["medida_cod"] = df["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
 
     # Para VITILLO TSER/EVEREST: extraer medida de la descripción
