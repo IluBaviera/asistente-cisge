@@ -358,6 +358,10 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[mascara_tipo]
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
+    # Para HT: si el texto menciona r1/1sn filtrar 1SN, si r2/2sn filtrar 2SN
+    if tipo and tipo.upper() == "HT" and color:
+        if color in ("1SN", "2SN"):
+            r = r[r["medida_cod"].str.upper().str.startswith(color, na=False)]
     if presion:
         r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
     if marca:
@@ -380,8 +384,10 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         if not mascara.any():
             mascara = r["medida_cod"].str.upper().str.startswith(medida_norm)
         # Para HT: medida_cod tiene formato "2SN-1/4\"" → buscar fracción dentro
+        # Usar separador para evitar que "1/2" matchee "1 1/2"
         if not mascara.any():
-            mascara = r["medida_cod"].str.upper().str.contains(re.escape(medida_norm), na=False)
+            patron = r"(?:^|-)" + re.escape(medida_norm) + r"(?:\"|$)"
+            mascara = r["medida_cod"].str.upper().str.contains(patron, na=False, regex=True)
         r = r[mascara]
     return r
 
@@ -543,6 +549,15 @@ def consultar(texto: str) -> tuple:
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
     marca, tipo, medida, color, cantidad, presion, linea = interpretar_linea(texto)
     logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion}")
+
+    # Para HT: detectar subtipo R1→1SN / R2→2SN del texto original
+    if tipo == "HT":
+        texto_lo_orig = texto.lower()
+        if re.search(r'\br1\b|\b1sn\b', texto_lo_orig):
+            color = "1SN"
+        elif re.search(r'\br2\b|\b2sn\b', texto_lo_orig):
+            color = "2SN"
+        marca = "QF"  # HT es exclusivo de QF
 
     # Líneas exclusivas → forzar marca automáticamente
     if linea == "exact":
