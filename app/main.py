@@ -20,6 +20,7 @@ NUMEROS_PERMITIDOS = {
     "51943584251",   # Pablo (pruebas)
     "51981234344",   # Eduardo (vendedor)
     "51958678366",   # Guillermo (vendedor)
+    "51982207673",   # Carlos Toledo (vendedor)
 }
 
 # ── deduplicación de mensajes ────────────────────
