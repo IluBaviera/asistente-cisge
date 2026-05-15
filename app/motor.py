@@ -198,7 +198,7 @@ try:
     # Extraer tipo y medida del código
     # Patrón estándar: PREFIJO-TIPO-MEDIDA (ej: QF-R1-1/2", JDE-4SH-12)
     # También captura PREFIJO-TIPOMED (ej: VT-TSER420)
-    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+)', expand=False).str.upper()
+    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+\d*)', expand=False).str.upper()
     df["medida_cod"] = df["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
 
     # Para VITILLO TSER/EVEREST: extraer medida de la descripción
