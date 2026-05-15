@@ -95,6 +95,9 @@ TIPO_ALIAS = {
     "lisa":             "R1S",
     "smooth":           "R1S",
     "r1s":              "R1S",
+    "r1 s":             "R1S",
+    "r2s":              "R2S",
+    "r2 s":             "R2S",
     "trenzada":         "R1",
     "trenzado":         "R1",
     "espiral":          "R12",
@@ -410,6 +413,7 @@ def interpretar_linea(texto: str) -> tuple:
             color = cod
             break
     # Detectar letra de color sola al final: "air 1/2 a", "air 1/2 n", "air 1/2 r"
+    color_de_letra_s = False
     if not color:
         # Detectar letra de color sola: al final o antes de epdm
         # Remover epdm para encontrar la letra
@@ -419,6 +423,8 @@ def interpretar_linea(texto: str) -> tuple:
             letra = m.group(1).upper()
             mapa = {"A": "A", "N": "N", "R": "R", "S": "S"}
             color = mapa.get(letra)
+            if letra == "S":
+                color_de_letra_s = True
 
     # ── Tipo — primero sinónimos en español, luego tipos directos del catálogo
     tipo = None
@@ -468,6 +474,11 @@ def interpretar_linea(texto: str) -> tuple:
         m = re.search(r'\b([1-4])\b', texto_lo)
         if m:
             medida = m.group(1)
+
+    # "s" letra suelta + tipo R1/R2 = smooth (cubierta lisa), no color azul
+    if color_de_letra_s and tipo in ("R1", "R2"):
+        tipo = tipo + "S"
+        color = None
 
     logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion} linea={linea}")
     return marca, tipo, medida, color, cantidad, presion, linea
