@@ -518,7 +518,6 @@ def consultar(texto: str) -> tuple:
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
     marca, tipo, medida, color, cantidad, presion, linea = interpretar_linea(texto)
-    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion}")
 
     # Líneas exclusivas → forzar marca automáticamente
     if linea == "exact":
@@ -544,12 +543,7 @@ def consultar(texto: str) -> tuple:
         if color and medida:
             medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
 
-        logger.info(f"Buscando → tipo={tipo} medida={medida_busq} marca={marca} linea={linea}")
         resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea)
-        logger.info(f"Resultados: {len(resultados)}")
-        # Debug: ver medida_cod de JDE-R15E
-        r15e = df[df["codigo"].str.contains("R15E", na=False)]
-        logger.info(f"R15E en BD: {r15e[['codigo','tipo_cod','medida_cod']].to_dict('records')}")
 
         # Si con color no encontró, intentar sin color
         if resultados.empty and color and medida:
