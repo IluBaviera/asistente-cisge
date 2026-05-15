@@ -552,12 +552,12 @@ def consultar(texto: str) -> tuple:
         medida_busq = medida
         # Detectar EPDM como modificador adicional
         epdm = "EPDM" if re.search(r'\bepdm\b', texto.lower()) else ""
-        logger.info(f"COLOR={color!r} EPDM={epdm!r} medida={medida!r}")
         if color and medida:
             base = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
             medida_busq = f'{base} {epdm}'.strip() if epdm and epdm not in base else base
 
          # Si con color no encontró, intentar sin color
+        logger.info(f'medida_busq final={medida_busq!r} marca={marca!r} tipo={tipo!r}')
         if 'resultados' not in dir() or resultados is None:
             resultados = __import__('pandas').DataFrame()
         if resultados.empty and color and medida:
