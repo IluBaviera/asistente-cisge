@@ -15,6 +15,12 @@ WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 VERIFY_TOKEN   = os.getenv("VERIFY_TOKEN")
 PHONE_ID       = os.getenv("PHONE_NUMBER_ID")
 
+# ── whitelist fase de pruebas ────────────────────
+NUMEROS_PERMITIDOS = {
+    "51943584251",   # Pablo (pruebas)
+    "51981234344",   # Eduardo (vendedor)
+}
+
 # ── deduplicación de mensajes ────────────────────
 mensajes_procesados: set = set()
 MAX_IDS = 1000
@@ -55,6 +61,11 @@ async def recibir_mensaje(request: Request):
         msg_id  = msg["id"]
         mensaje = msg["text"]["body"]
         numero  = msg["from"]
+
+        # Whitelist fase de pruebas
+        if numero not in NUMEROS_PERMITIDOS:
+            logger.info(f"Número no autorizado ignorado: {numero}")
+            return {"status": "ok"}
 
         # Deduplicación
         if msg_id in mensajes_procesados:
