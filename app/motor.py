@@ -544,7 +544,9 @@ def consultar(texto: str) -> tuple:
         if color and medida:
             medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
 
+        logger.info(f"Buscando → tipo={tipo} medida={medida_busq} marca={marca} linea={linea}")
         resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea)
+        logger.info(f"Resultados: {len(resultados)}")
 
         # Si con color no encontró, intentar sin color
         if resultados.empty and color and medida:
