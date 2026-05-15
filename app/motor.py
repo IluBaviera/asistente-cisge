@@ -171,6 +171,7 @@ LINEA_ALIAS = {
     "no conductivo":    "no conductiva",
     "alto rendimiento": "alto rendimiento",
     "twin":             "twin",
+    "doble":            "twin",
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
