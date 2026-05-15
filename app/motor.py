@@ -172,6 +172,10 @@ LINEA_ALIAS = {
     "alto rendimiento": "alto rendimiento",
     "twin":             "twin",
     "doble":            "twin",
+    # Variantes QINGFLEX R2
+    "impulmax":         "impulmax",
+    "impul max":        "impulmax",
+    "ip":               "impulmax",
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
@@ -358,13 +362,16 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
         mascara = medida_cod_norm == medida_norm
 
-        # Si no hay resultados, intentar también por nominal equivalente
-        # (algunos códigos JDE/HYP guardan la medida como "08", "12", etc.)
+        # Si no hay resultados, intentar por nominal equivalente
         if not mascara.any():
             nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
             nominal = nominal_inv.get(medida.strip().rstrip('"').strip())
             if nominal:
                 mascara = r["medida_cod"].str.strip() == nominal
+        # Si aún no hay resultados, match parcial al inicio
+        # (ej: medida_cod="3/4\" R" o "3/4\"S" debe matchear medida="3/4")
+        if not mascara.any():
+            mascara = r["medida_cod"].str.upper().str.startswith(medida_norm)
         r = r[mascara]
     return r
 
@@ -532,6 +539,8 @@ def consultar(texto: str) -> tuple:
         marca = "JDEFLEX"
     if linea in ("no conductiva", "alto rendimiento", "twin"):
         marca = "MACTUBI"
+    if linea == "impulmax":
+        marca = "QF"
     # Everest es exclusivo de VITILLO (ya mapeado a TSER en TIPO_ALIAS)
     if tipo == "TSER" and not marca:
         marca = "VITILLO"
