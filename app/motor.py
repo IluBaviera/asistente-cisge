@@ -345,9 +345,6 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["marca"].str.upper() == marca.upper()]
     if medida:
         # Match exacto: normalizar medida_cod y comparar
-        logger.info(f"MATCH medida={medida!r} len_r={len(r)}")
-        if len(r) > 0:
-            logger.info(f"medida_cods={r['medida_cod'].tolist()}")
 
         # Ej: "1/2"" → "1/2", "1 1/2"" → "1 1/2" (sin comillas, sin espacios extra)
         medida_norm = medida.upper().strip().rstrip('"').strip()
@@ -560,11 +557,13 @@ def consultar(texto: str) -> tuple:
             base = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
             medida_busq = f'{base} {epdm}'.strip() if epdm and epdm not in base else base
 
-         # Si con color no encontró, intentar sin color
-        if 'resultados' not in dir() or resultados is None:
-            resultados = __import__('pandas').DataFrame()
+        # Llamada principal con medida_busq (incluye color y EPDM)
+        subtipo_ht = color if tipo == 'HT' else None
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht)
+
+        # Si no encontró, intentar sin color/EPDM
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht)
 
         if len(resultados) == 1:
             logger.info(f"Match por filtros: {resultados.iloc[0]['codigo']}")
