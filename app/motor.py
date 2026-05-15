@@ -345,7 +345,6 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["marca"].str.upper() == marca.upper()]
     if medida:
         # Match exacto: normalizar medida_cod y comparar
-        logger.info(f"BUS medida={medida!r} r_size={len(r)} medida_cods={r['medida_cod'].tolist()[:5]}")
         # Ej: "1/2"" → "1/2", "1 1/2"" → "1 1/2" (sin comillas, sin espacios extra)
         medida_norm = medida.upper().strip().rstrip('"').strip()
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
