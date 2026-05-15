@@ -155,6 +155,18 @@ TIPO_SAE_MAP = {
     "R6":  ["R"],              # R6 también usa prefijo R en AF
 }
 
+# ─── LÍNEAS PREMIUM (modificadores, no tipos) ───────────────────────────────
+# Estas líneas son versiones mejoradas que aplican a múltiples tipos SAE
+LINEA_ALIAS = {
+    "exactflex":   "exact",
+    "exact flex":  "exact",
+    "shieldflex":  "shield",
+    "shield flex": "shield",
+    "shield":      "shield",
+    "teknospir":   "teknospir",
+    "tekno":       "tekno",
+}
+
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
 COLOR_ALIAS = {
     "amarillo": "A",
@@ -186,7 +198,7 @@ try:
     # Extraer tipo y medida del código
     # Patrón estándar: PREFIJO-TIPO-MEDIDA (ej: QF-R1-1/2", JDE-4SH-12)
     # También captura PREFIJO-TIPOMED (ej: VT-TSER420)
-    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+\d*)', expand=False).str.upper()
+    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+)', expand=False).str.upper()
     df["medida_cod"] = df["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
 
     # Para VITILLO TSER/EVEREST: extraer medida de la descripción
@@ -302,7 +314,7 @@ def buscar_por_codigo_parcial(texto: str) -> pd.DataFrame:
     """Búsqueda por fragmento de código."""
     return df[df["codigo"].str.upper().str.contains(re.escape(texto.upper()), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     if tipo:
@@ -326,6 +338,8 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             mascara_r12_directo = r["tipo_cod"].str.upper() == "R12"
             mascara_tipo = mascara_r12_directo | mascara_tsr12
         r = r[mascara_tipo]
+    if linea:
+        r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if presion:
         r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
     if marca:
@@ -364,6 +378,13 @@ def interpretar_linea(texto: str) -> tuple:
     texto_lim = re.sub(r'x\s*\d+', '', texto).strip()
     texto_up  = texto_lim.upper()
     texto_lo  = normalizar_medida_texto(texto_lim.lower())
+
+    # ── Línea premium (exactflex, shieldflex, teknospir) ──────────────────────
+    linea = None
+    for alias in sorted(LINEA_ALIAS, key=len, reverse=True):
+        if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
+            linea = LINEA_ALIAS[alias]
+            break
 
     # ── Presión (para mangueras TSER/Everest) ────────────────────────────────
     presion = None
@@ -434,8 +455,8 @@ def interpretar_linea(texto: str) -> tuple:
         if m:
             medida = m.group(1)
 
-    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion}")
-    return marca, tipo, medida, color, cantidad, presion
+    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion} linea={linea}")
+    return marca, tipo, medida, color, cantidad, presion, linea
 
 # ─── CONSULTA SIMPLE ──────────────────────────────────────────────────────────
 
@@ -496,7 +517,25 @@ def consultar(texto: str) -> tuple:
         return None, formatear_lista(parcial, f"Encontré {len(parcial)} productos similares:")
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
-    marca, tipo, medida, color, cantidad, presion = interpretar_linea(texto)
+    marca, tipo, medida, color, cantidad, presion, linea = interpretar_linea(texto)
+
+    # Líneas exclusivas → forzar marca automáticamente
+    if linea == "exact":
+        marca = "JDEFLEX"
+    # Everest es exclusivo de VITILLO (ya mapeado a TSER en TIPO_ALIAS)
+    if tipo == "TSER" and not marca:
+        marca = "VITILLO"
+
+    # Si hay línea premium pero no tipo → pedir el tipo
+    if linea and not tipo:
+        nombre_linea = {"exact": "Exact Flex", "shield": "Shield Flex", "teknospir": "TeknoSpir", "tekno": "Tekno"}.get(linea, linea.title())
+        return None, (
+            f"Entendido, quieres la línea *{nombre_linea}* 👍\n\n"
+            "¿Qué tipo de manguera necesitas?\n"
+            "• R1, R2, R3, R4, R5, R6, R7\n"
+            "• R12, R13, R15\n"
+            "• 4SH, 4SP"
+        )
 
     if tipo or marca or medida:
         # Construir medida con color si aplica (ej: "1/2" N" → buscar "1/2" N")
@@ -504,11 +543,11 @@ def consultar(texto: str) -> tuple:
         if color and medida:
             medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
 
-        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion)
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea)
 
         # Si con color no encontró, intentar sin color
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea)
 
         if len(resultados) == 1:
             logger.info(f"Match por filtros: {resultados.iloc[0]['codigo']}")
@@ -592,14 +631,14 @@ def cotizar_multiple(lineas: list) -> str:
 
         # 3. Tipo + medida + marca
         if fila is None:
-            marca, tipo, medida, color, cantidad, presion = interpretar_linea(linea)
+            marca, tipo, medida, color, cantidad, presion, linea_prem = interpretar_linea(linea)
             if tipo or marca or medida:
                 medida_busq = medida
                 if color and medida:
                     medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
-                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion)
+                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea_prem)
                 if resultados.empty and color:
-                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion)
+                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea_prem)
                 if len(resultados) == 1:
                     fila = resultados.iloc[0]
 
