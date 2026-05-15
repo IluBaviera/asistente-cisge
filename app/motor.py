@@ -345,6 +345,7 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["marca"].str.upper() == marca.upper()]
     if medida:
         # Match exacto: normalizar medida_cod y comparar
+        logger.info(f"BUS medida={medida!r} r_size={len(r)} medida_cods={r['medida_cod'].tolist()[:5]}")
         # Ej: "1/2"" → "1/2", "1 1/2"" → "1 1/2" (sin comillas, sin espacios extra)
         medida_norm = medida.upper().strip().rstrip('"').strip()
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
@@ -557,7 +558,6 @@ def consultar(texto: str) -> tuple:
             medida_busq = f'{base} {epdm}'.strip() if epdm and epdm not in base else base
 
          # Si con color no encontró, intentar sin color
-        logger.info(f'medida_busq final={medida_busq!r} marca={marca!r} tipo={tipo!r}')
         if 'resultados' not in dir() or resultados is None:
             resultados = __import__('pandas').DataFrame()
         if resultados.empty and color and medida:
