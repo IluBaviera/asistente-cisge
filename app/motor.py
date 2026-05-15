@@ -555,6 +555,7 @@ def consultar(texto: str) -> tuple:
             medida_busq = f'{base} {epdm}'.strip() if epdm else base
 
          # Si con color no encontró, intentar sin color
+        logger.info(f'medida_busq={medida_busq!r} color={color!r} epdm={epdm!r}')
         if 'resultados' not in dir() or resultados is None:
             resultados = __import__('pandas').DataFrame()
         if resultados.empty and color and medida:
