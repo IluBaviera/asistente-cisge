@@ -19,6 +19,7 @@ PHONE_ID       = os.getenv("PHONE_NUMBER_ID")
 NUMEROS_PERMITIDOS = {
     "51943584251",   # Pablo (pruebas)
     "51981234344",   # Eduardo (vendedor)
+    "51958678366",   # Guillermo (vendedor)
 }
 
 # ── deduplicación de mensajes ────────────────────
