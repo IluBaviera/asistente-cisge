@@ -332,7 +332,7 @@ def buscar_por_codigo_parcial(texto: str) -> pd.DataFrame:
     """Búsqueda por fragmento de código."""
     return df[df["codigo"].str.upper().str.contains(re.escape(texto.upper()), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     if tipo:
@@ -359,9 +359,9 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     # Para HT: si el texto menciona r1/1sn filtrar 1SN, si r2/2sn filtrar 2SN
-    if tipo and tipo.upper() == "HT" and color:
-        if color in ("1SN", "2SN"):
-            r = r[r["medida_cod"].str.upper().str.startswith(color, na=False)]
+    if tipo and tipo.upper() == "HT" and subtipo:
+        if subtipo in ("1SN", "2SN"):
+            r = r[r["medida_cod"].str.upper().str.startswith(subtipo, na=False)]
     if presion:
         r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
     if marca:
@@ -587,16 +587,12 @@ def consultar(texto: str) -> tuple:
         if color and medida:
             medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
 
-        logger.info(f"Buscando → tipo={tipo} medida={medida_busq} marca={marca} linea={linea}")
-        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea)
-        logger.info(f"Resultados: {len(resultados)}")
-        # Debug: ver medida_cod de JDE-R15E
-        r15e = df[df["codigo"].str.contains("R15E", na=False)]
-        logger.info(f"R15E en BD: {r15e[['codigo','tipo_cod','medida_cod']].to_dict('records')}")
+        subtipo_ht = color if tipo == "HT" else None
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht)
 
         # Si con color no encontró, intentar sin color
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht)
 
         if len(resultados) == 1:
             logger.info(f"Match por filtros: {resultados.iloc[0]['codigo']}")
