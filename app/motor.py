@@ -406,7 +406,10 @@ def interpretar_linea(texto: str) -> tuple:
             break
     # Detectar letra de color sola al final: "air 1/2 a", "air 1/2 n", "air 1/2 r"
     if not color:
-        m = re.search(r'\b([anrs])\s*$', texto_lo.rstrip())
+        # Detectar letra de color sola: al final o antes de epdm
+        # Remover epdm para encontrar la letra
+        texto_sin_epdm = re.sub(r'\bepdm\b', '', texto_lo).strip()
+        m = re.search(r'\b([anrs])\s*$', texto_sin_epdm.rstrip())
         if m:
             letra = m.group(1).upper()
             mapa = {"A": "A", "N": "N", "R": "R", "S": "S"}
