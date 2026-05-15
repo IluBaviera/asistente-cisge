@@ -115,10 +115,6 @@ TIPO_ALIAS = {
     "alta temp":        "HT",
     "hightemp":         "HT",
     "ht":               "HT",
-    "r1 ht":            "HT",   # R1 alta temperatura → HT 1SN
-    "r2 ht":            "HT",   # R2 alta temperatura → HT 2SN
-    "ht r1":            "HT",
-    "ht r2":            "HT",
     # VITILLO Everest isobárica (producto distinto al R15)
     "tser":             "TSER",
     "everest":          "TSER",
@@ -162,24 +158,13 @@ TIPO_SAE_MAP = {
 # ─── LÍNEAS PREMIUM (modificadores, no tipos) ───────────────────────────────
 # Estas líneas son versiones mejoradas que aplican a múltiples tipos SAE
 LINEA_ALIAS = {
-    "exactflex":        "exact",
-    "exact flex":       "exact",
-    "exact":            "exact",
-    "shieldflex":       "shield",
-    "shield flex":      "shield",
-    "shield":           "shield",
-    "teknospir":        "teknospir",
-    "tekno":            "tekno",
-    # Variantes MACTUBI R7
-    "no conductiva":    "no conductiva",
-    "no conductivo":    "no conductiva",
-    "alto rendimiento": "alto rendimiento",
-    "twin":             "twin",
-    "doble":            "twin",
-    # Variantes QINGFLEX R2
-    "impulmax":         "impulmax",
-    "impul max":        "impulmax",
-    "ip":               "impulmax",
+    "exactflex":   "exact",
+    "exact flex":  "exact",
+    "shieldflex":  "shield",
+    "shield flex": "shield",
+    "shield":      "shield",
+    "teknospir":   "teknospir",
+    "tekno":       "tekno",
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
@@ -189,9 +174,6 @@ COLOR_ALIAS = {
     "rojo":     "R",
     "azul":     "S",    # algunos códigos usan S para azul/especial
     "epdm":     "EPDM",
-    # Subtipos HT (alta temperatura QF)
-    "2sn":      "2SN",
-    "1sn":      "1SN",
 }
 
 # ─── PALABRAS IGNORADAS PARA DETECCIÓN DE CÓDIGO ──────────────────────────────
@@ -332,7 +314,7 @@ def buscar_por_codigo_parcial(texto: str) -> pd.DataFrame:
     """Búsqueda por fragmento de código."""
     return df[df["codigo"].str.upper().str.contains(re.escape(texto.upper()), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     if tipo:
@@ -358,10 +340,6 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[mascara_tipo]
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
-    # Para HT: si el texto menciona r1/1sn filtrar 1SN, si r2/2sn filtrar 2SN
-    if tipo and tipo.upper() == "HT" and subtipo:
-        if subtipo in ("1SN", "2SN"):
-            r = r[r["medida_cod"].str.upper().str.startswith(subtipo, na=False)]
     if presion:
         r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
     if marca:
@@ -373,21 +351,13 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
         mascara = medida_cod_norm == medida_norm
 
-        # Si no hay resultados, intentar por nominal equivalente
+        # Si no hay resultados, intentar también por nominal equivalente
+        # (algunos códigos JDE/HYP guardan la medida como "08", "12", etc.)
         if not mascara.any():
             nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
             nominal = nominal_inv.get(medida.strip().rstrip('"').strip())
             if nominal:
                 mascara = r["medida_cod"].str.strip() == nominal
-        # Si aún no hay resultados, match parcial al inicio
-        # (ej: medida_cod="3/4\" R" o "3/4\"S" debe matchear medida="3/4")
-        if not mascara.any():
-            mascara = r["medida_cod"].str.upper().str.startswith(medida_norm)
-        # Para HT: medida_cod tiene formato "2SN-1/4\"" → buscar fracción dentro
-        # Usar separador para evitar que "1/2" matchee "1 1/2"
-        if not mascara.any():
-            patron = r"(?:^|-)" + re.escape(medida_norm) + r"(?:\"|$)"
-            mascara = r["medida_cod"].str.upper().str.contains(patron, na=False, regex=True)
         r = r[mascara]
     return r
 
@@ -435,6 +405,13 @@ def interpretar_linea(texto: str) -> tuple:
         if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
             color = cod
             break
+    # Detectar letra de color sola al final: "air 1/2 a", "air 1/2 n", "air 1/2 r"
+    if not color:
+        m = re.search(r'\b([anrs])\s*$', texto_lo.rstrip())
+        if m:
+            letra = m.group(1).upper()
+            mapa = {"A": "A", "N": "N", "R": "R", "S": "S"}
+            color = mapa.get(letra)
 
     # ── Tipo — primero sinónimos en español, luego tipos directos del catálogo
     tipo = None
@@ -550,22 +527,9 @@ def consultar(texto: str) -> tuple:
     marca, tipo, medida, color, cantidad, presion, linea = interpretar_linea(texto)
     logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion}")
 
-    # Para HT: detectar subtipo R1→1SN / R2→2SN del texto original
-    if tipo == "HT":
-        texto_lo_orig = texto.lower()
-        if re.search(r'\br1\b|\b1sn\b', texto_lo_orig):
-            color = "1SN"
-        elif re.search(r'\br2\b|\b2sn\b', texto_lo_orig):
-            color = "2SN"
-        marca = "QF"  # HT es exclusivo de QF
-
     # Líneas exclusivas → forzar marca automáticamente
     if linea == "exact":
         marca = "JDEFLEX"
-    if linea in ("no conductiva", "alto rendimiento", "twin"):
-        marca = "MACTUBI"
-    if linea == "impulmax":
-        marca = "QF"
     # Everest es exclusivo de VITILLO (ya mapeado a TSER en TIPO_ALIAS)
     if tipo == "TSER" and not marca:
         marca = "VITILLO"
@@ -587,12 +551,16 @@ def consultar(texto: str) -> tuple:
         if color and medida:
             medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
 
-        subtipo_ht = color if tipo == "HT" else None
-        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht)
+        logger.info(f"Buscando → tipo={tipo} medida={medida_busq} marca={marca} linea={linea}")
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea)
+        logger.info(f"Resultados: {len(resultados)}")
+        # Debug: ver medida_cod de JDE-R15E
+        r15e = df[df["codigo"].str.contains("R15E", na=False)]
+        logger.info(f"R15E en BD: {r15e[['codigo','tipo_cod','medida_cod']].to_dict('records')}")
 
         # Si con color no encontró, intentar sin color
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea)
 
         if len(resultados) == 1:
             logger.info(f"Match por filtros: {resultados.iloc[0]['codigo']}")
