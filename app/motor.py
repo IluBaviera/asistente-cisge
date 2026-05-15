@@ -548,8 +548,11 @@ def consultar(texto: str) -> tuple:
     if tipo or marca or medida:
         # Construir medida con color si aplica (ej: "1/2" N" → buscar "1/2" N")
         medida_busq = medida
+        # Detectar EPDM como modificador adicional
+        epdm = "EPDM" if re.search(r'\bepdm\b', texto.lower()) else ""
         if color and medida:
-            medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
+            base = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
+            medida_busq = f'{base} {epdm}'.strip() if epdm else base
 
         logger.info(f"Buscando → tipo={tipo} medida={medida_busq} marca={marca} linea={linea}")
         resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea)
