@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from app.motor import consultar
 from app.motor import log_consultas
+import asyncio
 import httpx
 import os
 import logging
@@ -9,6 +10,23 @@ import logging
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+RENDER_URL = os.getenv("RENDER_EXTERNAL_URL", "https://asistente-cisge.onrender.com")
+
+async def _keep_alive():
+    await asyncio.sleep(60)  # esperar a que el servidor esté completamente listo
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(f"{RENDER_URL}/ping", timeout=10)
+                logger.info(f"Keep-alive ping: {r.status_code}")
+        except Exception as e:
+            logger.warning(f"Keep-alive ping failed: {e}")
+        await asyncio.sleep(600)  # 10 minutos
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(_keep_alive())
 
 # ── tokens de Meta ──────────────────────────────
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
@@ -31,6 +49,10 @@ MAX_IDS = 1000
 @app.get("/")
 def root():
     return {"status": "ok"}
+
+@app.get("/ping")
+def ping():
+    return {"status": "alive"}
 
 @app.get("/logs")
 def ver_logs():
