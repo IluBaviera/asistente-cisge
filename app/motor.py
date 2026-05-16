@@ -516,7 +516,7 @@ def interpretar_linea(texto: str) -> tuple:
 
     # Entero solo (pulgadas sin símbolo): solo si hay contexto de tipo/marca/presion
     if not medida and (tipo or marca or presion):
-        m = re.search(r'\b([1-4])\b', texto_lo)
+        m = re.search(r'\b([1-6])\b', texto_lo)
         if m:
             medida = m.group(1)
 
