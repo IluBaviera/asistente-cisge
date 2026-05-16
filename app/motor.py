@@ -358,8 +358,9 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
             alm, cant = next(iter(almacenes.items()))
             resp += f"📦 Stock: {cant:.2f} {umed} ({alm})\n"
         else:
-            partes = [f"{alm}: {cant:.2f} {umed}" for alm, cant in almacenes.items()]
-            resp += "📦 Stock: " + " | ".join(partes) + "\n"
+            resp += "📦 Stock:\n"
+            for alm, cant in almacenes.items():
+                resp += f"  • {alm}: {cant:.2f} {umed}\n"
     else:
         resp += "⚠️ Sin stock disponible\n"
 
