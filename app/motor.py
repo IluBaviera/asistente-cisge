@@ -188,8 +188,11 @@ SUPERFICIE_ALIAS = {
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
 COLOR_ALIAS = {
     "amarillo": "A",
+    "amarilla": "A",
     "negro":    "N",
+    "negra":    "N",
     "rojo":     "R",
+    "roja":     "R",
     "azul":     "S",    # algunos códigos usan S para azul/especial
 }
 
