@@ -628,6 +628,25 @@ def consultar(texto: str) -> tuple:
         if resultados.empty and color and medida:
             resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht, superficie)
 
+        # Si tipo detectado pero medida no encontró resultados → mostrar opciones del tipo
+        if resultados.empty and tipo and medida:
+            resultados_tipo = buscar_por_tipo_medida_marca(tipo, None, marca, presion, linea, subtipo_ht, superficie)
+            if not resultados_tipo.empty:
+                meds = sorted(resultados_tipo["medida_cod"].dropna().str.rstrip('"').str.strip().unique())
+                meds_str = ", ".join(meds)
+                medida_display = medida.rstrip('"').strip()
+                if len(resultados_tipo) <= 12:
+                    return None, (
+                        f"No hay *{tipo}* en *{medida_display}\"*.\n\n"
+                        + formatear_lista(resultados_tipo, "Opciones disponibles:")
+                    )
+                else:
+                    return None, (
+                        f"No hay *{tipo}* en *{medida_display}\"*.\n\n"
+                        f"📐 Medidas disponibles: {meds_str}\n\n"
+                        "¿Cuál necesitas?"
+                    )
+
         if len(resultados) == 1:
             logger.info(f"Match por filtros: {resultados.iloc[0]['codigo']}")
             log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "filtros",
