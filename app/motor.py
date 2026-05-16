@@ -1,6 +1,8 @@
+import asyncio
 import os
 import re
 import logging
+import httpx
 import pandas as pd
 from datetime import datetime
 
@@ -237,6 +239,40 @@ except Exception as e:
     logger.critical(f"ERROR CARGANDO EXCEL: {e}")
     raise
 
+# ─── STOCK EN TIEMPO REAL ────────────────────────────────────────────────────
+STOCK_URL = "https://drive.google.com/uc?export=download&id=1yz6vgjQd1yRGKd30goqWHC0J7d4YRfFF"
+
+_stock_index: dict = {}   # codf.upper() → {almacenes, umed}
+_stock_actualizado: str = ""
+
+def _build_stock_index(data: dict) -> dict:
+    idx = {}
+    for entry in data.get("stock", {}).values():
+        codf = entry.get("codf", "")
+        if codf:
+            idx[codf.strip().upper()] = {
+                "almacenes": entry.get("almacenes", {}),
+                "umed":      entry.get("umed", ""),
+            }
+    return idx
+
+async def refresh_stock_loop():
+    global _stock_index, _stock_actualizado
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(STOCK_URL, timeout=30, follow_redirects=True)
+                data = r.json()
+            _stock_index = _build_stock_index(data)
+            _stock_actualizado = data.get("actualizado", "")
+            logger.info(f"Stock: {len(_stock_index)} entradas, actualizado: {_stock_actualizado}")
+        except Exception as e:
+            logger.warning(f"Error cargando stock: {e}")
+        await asyncio.sleep(600)
+
+def get_stock_entry(codigo: str) -> dict | None:
+    return _stock_index.get(codigo.strip().upper())
+
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 def _ruta_imagen(tipo_imagen: str):
@@ -313,6 +349,20 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
         resp += f"🏷️ Descuento: {descuento:.0f}% (-${desc_monto:.2f})\n"
         resp += f"💵 Total s/IGV: ${total_final:.2f}\n"
     resp += f"🧾 *Total c/IGV: ${total_igv:.2f}*\n"
+
+    entrada = get_stock_entry(fila["codigo"])
+    if entrada and entrada.get("almacenes"):
+        umed = entrada.get("umed", "")
+        almacenes = entrada["almacenes"]
+        if len(almacenes) == 1:
+            alm, cant = next(iter(almacenes.items()))
+            resp += f"📦 Stock: {cant:.2f} {umed} ({alm})\n"
+        else:
+            partes = [f"{alm}: {cant:.2f} {umed}" for alm, cant in almacenes.items()]
+            resp += "📦 Stock: " + " | ".join(partes) + "\n"
+    else:
+        resp += "⚠️ Sin stock disponible\n"
+
     return resp
 
 def formatear_lista(resultados: pd.DataFrame, titulo: str) -> str:

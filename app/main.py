@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from app.motor import consultar
 from app.motor import log_consultas
+from app.motor import refresh_stock_loop
 import asyncio
 import httpx
 import os
@@ -27,6 +28,7 @@ async def _keep_alive():
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(_keep_alive())
+    asyncio.create_task(refresh_stock_loop())
 
 # ── tokens de Meta ──────────────────────────────
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
