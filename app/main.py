@@ -50,7 +50,7 @@ MAX_IDS = 1000
 def root():
     return {"status": "ok"}
 
-@app.get("/ping")
+@app.api_route("/ping", methods=["GET", "HEAD"])
 def ping():
     return {"status": "alive"}
 
