@@ -119,14 +119,10 @@ TIPO_ALIAS = {
     "hightemp":         "HT",
     "ht":               "HT",
     # VITILLO Everest isobárica (producto distinto al R15)
+    # Nota: "4000psi"/"5000psi"/"6000psi" ya NO van aquí — los maneja
+    # la detección de presión para incluir también JDE MatrixFlex
     "tser":             "TSER",
     "everest":          "TSER",
-    "4000 psi":         "TSER",
-    "4000psi":          "TSER",
-    "5000 psi":         "TSER",
-    "5000psi":          "TSER",
-    "6000 psi":         "TSER",
-    "6000psi":          "TSER",
     # Estándares SAE/ISO hidráulicos
     "r1":               "R1",
     "r2":               "R2",
@@ -349,18 +345,27 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             mascara_r15_directo = r["tipo_cod"].str.upper() == "R15"
             mascara_tipo = mascara_r15_directo | mascara_tsr15
         elif tipo_up == "R12":
-            # R12 puede estar en tipo_cod R12 directo O en TSR12xx
             mascara_tsr12 = r["tipo_cod"].str.upper() == "TSR"
             mascara_tsr12 = mascara_tsr12 & r["descripcion"].str.contains("R12", na=False, case=False)
             mascara_r12_directo = r["tipo_cod"].str.upper() == "R12"
             mascara_tipo = mascara_r12_directo | mascara_tsr12
+        elif tipo_up == "TSER":
+            # VITILLO Everest: tipo_cod es "TSER416", "TSER412", etc. → startswith
+            mascara_tipo = r["tipo_cod"].str.upper().str.startswith("TSER", na=False)
         r = r[mascara_tipo]
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if subtipo and subtipo in ("1SN", "2SN"):
         r = r[r["medida_cod"].str.upper().str.startswith(subtipo, na=False)]
     if presion:
-        r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
+        psi_str = str(presion)              # "4000", "5000", "6000"
+        k_str   = psi_str[0] + "K"         # "4K",   "5K",   "6K"
+        mascara_pres = (
+            r["descripcion"].str.contains(psi_str, na=False, case=False) |
+            r["descripcion"].str.contains(k_str,   na=False, case=False) |
+            r["medida_cod"].str.upper().str.contains(k_str, na=False)
+        )
+        r = r[mascara_pres]
     if marca:
         r = r[r["marca"].str.upper() == marca.upper()]
     # Filtro de superficie: corrugada filtra por descripción; lisa excluye corrugadas
@@ -378,6 +383,8 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         nominal = nominal_inv.get(medida.strip().rstrip('"').strip())
         if nominal:
             mascara = mascara | (r["medida_cod"].str.strip() == nominal)
+            # Para MatrixFlex: medida_cod es "4K-16", "6K-12", etc. → sufijo "-{nominal}"
+            mascara = mascara | (r["medida_cod"].str.upper().str.endswith(f"-{nominal}"))
             # Para corrugadas: buscar también "CORG-{nominal}" (ej: CORG-10)
             if superficie == "corrugada":
                 mascara = mascara | (r["medida_cod"].str.strip() == f"CORG-{nominal}")
@@ -416,11 +423,15 @@ def interpretar_linea(texto: str) -> tuple:
             superficie = SUPERFICIE_ALIAS[alias]
             break
 
-    # ── Presión (para mangueras TSER/Everest) ────────────────────────────────
+    # ── Presión (TSER Everest / MatrixFlex) ──────────────────────────────────
     presion = None
     m_psi = re.search(r'\b(\d{4})\s*(?:psi)?\b', texto_lo)
     if m_psi and m_psi.group(1) in ("4000", "5000", "6000"):
         presion = m_psi.group(1)
+    if not presion:
+        m_k = re.search(r'\b([456])k\b', texto_lo)
+        if m_k:
+            presion = m_k.group(1) + "000"  # "4k"→"4000", "5k"→"5000", "6k"→"6000"
 
     # ── Marca ─────────────────────────────────────────────────────────────────
     marca = None
@@ -492,8 +503,8 @@ def interpretar_linea(texto: str) -> tuple:
             medida = MEDIDA_NOMINAL[m.group(1)]
             logger.debug(f"  nominal '{m.group(1)}' → medida '{medida}'")
 
-    # Entero solo (pulgadas sin símbolo): solo si hay contexto de tipo/marca
-    if not medida and (tipo or marca):
+    # Entero solo (pulgadas sin símbolo): solo si hay contexto de tipo/marca/presion
+    if not medida and (tipo or marca or presion):
         m = re.search(r'\b([1-4])\b', texto_lo)
         if m:
             medida = m.group(1)
