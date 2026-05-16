@@ -139,7 +139,9 @@ TIPO_ALIAS = {
     "r13":              "R13",
     "r15":              "R15",  # R15 SAE → TSR15xx (no confundir con TSER/Everest)
     "4sh":              "4SH",
+    "4she":             "4SHE",
     "4sp":              "4SP",
+    "4spe":             "4SPE",
     "2sn":              "R2",   # alias común en campo
     "1sn":              "R1",   # alias común en campo
 }
@@ -152,8 +154,8 @@ TIPO_SAE_MAP = {
     "R12": ["R12", "TSR"],     # R12 puede ser R12 o TSR (VITILLO TSR12xx)
     "R13": ["TSR"],            # R13 = TSR (VITILLO TSR13xx)
     "R15": ["R15", "TSR"],     # R15 directo (JDE/QF) y TSR15xx (VITILLO)
-    "4SH": ["4SH", "TS"],      # 4SH puede ser 4SH o TS (VITILLO Teknospir)
-    "4SP": ["4SP", "TS"],      # 4SP también en TS de VITILLO
+    "4SH": ["4SH", "4SHE", "TS"],   # 4SHE = JDE ExactFlex; TS = VITILLO Teknospir
+    "4SP": ["4SP", "4SPE", "TS"],   # 4SPE = JDE ExactFlex; TS = VITILLO
     "R4":  ["R"],              # R4 usa prefijo R en AF
     "R6":  ["R"],              # R6 también usa prefijo R en AF
 }
@@ -209,7 +211,7 @@ try:
     # Extraer tipo y medida del código
     # Patrón estándar: PREFIJO-TIPO-MEDIDA (ej: QF-R1-1/2", JDE-4SH-12)
     # También captura PREFIJO-TIPOMED (ej: VT-TSER420)
-    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z]+\d*[A-Z]*)', expand=False).str.upper()
+    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z0-9]*[A-Z][A-Z0-9]*)', expand=False).str.upper()
     df["medida_cod"] = df["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
 
     # Para VITILLO TSER/EVEREST: extraer medida de la descripción
@@ -235,7 +237,7 @@ def _ruta_imagen(tipo_imagen: str):
     return ruta if os.path.exists(ruta) else None
 
 def extraer_cantidad(texto: str) -> int:
-    match = re.search(r"x\s*(\d+)", texto.lower())
+    match = re.search(r"\bx\s*(\d+)", texto.lower())
     return int(match.group(1)) if match else 1
 
 def extraer_descuento(texto: str) -> float:
@@ -396,7 +398,7 @@ def interpretar_linea(texto: str) -> tuple:
     Extrae (marca, tipo, medida, color, cantidad, presion) del texto libre del cliente.
     """
     cantidad  = extraer_cantidad(texto)
-    texto_lim = re.sub(r'x\s*\d+', '', texto).strip()
+    texto_lim = re.sub(r'\bx\s*\d+', '',texto).strip()
     texto_up  = texto_lim.upper()
     texto_lo  = normalizar_medida_texto(texto_lim.lower())
 
@@ -526,7 +528,7 @@ def consultar(texto: str) -> tuple:
     texto = lineas[0]
     cantidad = extraer_cantidad(texto)
     descuento = extraer_descuento(texto)
-    texto_sin_cant = re.sub(r'x\s*\d+', '', texto).strip()
+    texto_sin_cant = re.sub(r'\bx\s*\d+', '',texto).strip()
     texto_sin_cant = re.sub(r'\b\d+\s*%', '', texto_sin_cant).strip()
 
     # ── Saludo / bienvenida ───────────────────────────────────────────────────
@@ -667,13 +669,13 @@ def cotizar_multiple(lineas: list) -> str:
 
     for i, linea in enumerate(lineas, start=1):
         # Detectar línea de descuento global
-        if "descuento" in linea.lower() and not re.search(r'x\s*\d+', linea.lower()):
+        if "descuento" in linea.lower() and not re.search(r'\bx\s*\d+', linea.lower()):
             descuento_global = extraer_descuento(linea)
             continue
 
         cantidad       = extraer_cantidad(linea)
         desc_linea     = extraer_descuento(linea)
-        texto_sin_cant = re.sub(r'x\s*\d+', '', linea).strip()
+        texto_sin_cant = re.sub(r'\bx\s*\d+', '',linea).strip()
         texto_sin_cant = re.sub(r'\b\d+\s*%', '', texto_sin_cant).strip()
 
         fila = None
