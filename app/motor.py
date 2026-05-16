@@ -92,8 +92,6 @@ TIPO_ALIAS = {
     "car wash":         "R2CW",
     "lavado auto":      "R2CW",
     "lavado":           "R2CW",
-    "lisa":             "R1S",
-    "smooth":           "R1S",
     "r1s":              "R1S",
     "r1 s":             "R1S",
     "r2s":              "R2S",
@@ -170,6 +168,15 @@ LINEA_ALIAS = {
     "shield":      "shield",
     "teknospir":   "teknospir",
     "tekno":       "tekno",
+}
+
+# ─── SUPERFICIE DE CUBIERTA (modificador, no tipo) ────────────────────────────
+SUPERFICIE_ALIAS = {
+    "corrugada":  "corrugada",
+    "corrugado":  "corrugada",
+    "corg":       "corrugada",
+    "lisa":       "lisa",
+    "smooth":     "lisa",    # smooth = lisa en cubierta de R14/otros tipos
 }
 
 # ─── ALIAS DE COLOR/VARIANTE ──────────────────────────────────────────────────
@@ -322,7 +329,7 @@ def buscar_por_codigo_parcial(texto: str) -> pd.DataFrame:
     """Búsqueda por fragmento de código."""
     return df[df["codigo"].str.upper().str.contains(re.escape(texto.upper()), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     if tipo:
@@ -354,20 +361,24 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["descripcion"].str.contains(str(presion), na=False, case=False)]
     if marca:
         r = r[r["marca"].str.upper() == marca.upper()]
+    # Filtro de superficie: corrugada filtra por descripción; lisa excluye corrugadas
+    if superficie == "corrugada":
+        r = r[r["descripcion"].str.contains("corrugada", na=False, case=False)]
+    elif superficie == "lisa":
+        r = r[~r["descripcion"].str.contains("corrugada", na=False, case=False)]
     if medida:
-        # Match exacto: normalizar medida_cod y comparar
-
-        # Ej: "1/2"" → "1/2", "1 1/2"" → "1 1/2" (sin comillas, sin espacios extra)
         medida_norm = medida.upper().strip().rstrip('"').strip()
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
         mascara = medida_cod_norm == medida_norm
 
-        # Combinar siempre con match por nominal equivalente
-        # (JDE/HYP guardan "08" donde QF guarda "1/2"" — ambos deben aparecer)
+        # Buscar también por nominal equivalente (JDE/HYP usan "08", QF usa "1/2"")
         nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
         nominal = nominal_inv.get(medida.strip().rstrip('"').strip())
         if nominal:
             mascara = mascara | (r["medida_cod"].str.strip() == nominal)
+            # Para corrugadas: buscar también "CORG-{nominal}" (ej: CORG-10)
+            if superficie == "corrugada":
+                mascara = mascara | (r["medida_cod"].str.strip() == f"CORG-{nominal}")
         r = r[mascara]
     return r
 
@@ -394,6 +405,13 @@ def interpretar_linea(texto: str) -> tuple:
     for alias in sorted(LINEA_ALIAS, key=len, reverse=True):
         if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
             linea = LINEA_ALIAS[alias]
+            break
+
+    # ── Superficie de cubierta (corrugada / lisa) ─────────────────────────────
+    superficie = None
+    for alias in sorted(SUPERFICIE_ALIAS, key=len, reverse=True):
+        if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
+            superficie = SUPERFICIE_ALIAS[alias]
             break
 
     # ── Presión (para mangueras TSER/Everest) ────────────────────────────────
@@ -483,8 +501,14 @@ def interpretar_linea(texto: str) -> tuple:
         tipo = tipo + "S"
         color = None
 
-    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion} linea={linea}")
-    return marca, tipo, medida, color, cantidad, presion, linea
+    # "lisa"/"smooth" sin tipo específico → R1S (cubierta lisa de R1)
+    # Con tipo ya definido → solo es modificador de superficie (corrugada vs lisa)
+    if superficie == "lisa" and tipo is None:
+        tipo = "R1S"
+        superficie = None
+
+    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion} linea={linea} superficie={superficie}")
+    return marca, tipo, medida, color, cantidad, presion, linea, superficie
 
 # ─── CONSULTA SIMPLE ──────────────────────────────────────────────────────────
 
@@ -545,8 +569,8 @@ def consultar(texto: str) -> tuple:
         return None, formatear_lista(parcial, f"Encontré {len(parcial)} productos similares:")
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
-    marca, tipo, medida, color, cantidad, presion, linea = interpretar_linea(texto)
-    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion}")
+    marca, tipo, medida, color, cantidad, presion, linea, superficie = interpretar_linea(texto)
+    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion} superficie={superficie}")
 
     # Líneas exclusivas → forzar marca automáticamente
     if linea == "exact":
@@ -575,13 +599,13 @@ def consultar(texto: str) -> tuple:
             base = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
             medida_busq = f'{base} {epdm}'.strip() if epdm and epdm not in base else base
 
-        # Llamada principal con medida_busq (incluye color y EPDM)
+        # Llamada principal con medida_busq (incluye color, EPDM y superficie)
         subtipo_ht = color if tipo == 'HT' else None
-        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht)
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht, superficie)
 
         # Si no encontró, intentar sin color/EPDM
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht, superficie)
 
         if len(resultados) == 1:
             logger.info(f"Match por filtros: {resultados.iloc[0]['codigo']}")
@@ -665,14 +689,14 @@ def cotizar_multiple(lineas: list) -> str:
 
         # 3. Tipo + medida + marca
         if fila is None:
-            marca, tipo, medida, color, cantidad, presion, linea_prem = interpretar_linea(linea)
+            marca, tipo, medida, color, cantidad, presion, linea_prem, sup = interpretar_linea(linea)
             if tipo or marca or medida:
                 medida_busq = medida
                 if color and medida:
                     medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
-                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea_prem)
+                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea_prem, None, sup)
                 if resultados.empty and color:
-                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea_prem)
+                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea_prem, None, sup)
                 if len(resultados) == 1:
                     fila = resultados.iloc[0]
 
