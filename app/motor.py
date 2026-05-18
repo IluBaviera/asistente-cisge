@@ -440,6 +440,9 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
         mascara = medida_cod_norm == medida_norm
 
+        # Para medida_cod con color sufijo: "1/2" R", "1/2" N", "1/2" A" (AF AIR, etc.)
+        mascara = mascara | r["medida_cod"].str.upper().str.strip().str.startswith(medida_norm + '"')
+
         # Buscar también por nominal equivalente (JDE/HYP usan "08", QF usa "1/2"")
         nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
         nominal = nominal_inv.get(medida.strip().rstrip('"').strip())
