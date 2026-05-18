@@ -637,6 +637,15 @@ def consultar(texto: str) -> tuple:
 
     # ── Estrategia 2: código parcial ──────────────────────────────────────────
     parcial = buscar_por_codigo_parcial(texto_sin_cant)
+    # Fallback VITILLO: códigos sin guion entre tipo y nominal (VT-TH1SN03).
+    # El vendedor a veces inserta la letra de color: VT-TH1SNN03 → VT-TH1SN03
+    if parcial.empty:
+        m_vt = re.match(r'^(.+)([A-Z])(\d{2}(?:SL)?)$', texto_sin_cant.upper().strip())
+        if m_vt:
+            alt = m_vt.group(1) + m_vt.group(3)
+            parcial = buscar_por_codigo_parcial(alt)
+            if not parcial.empty:
+                logger.info(f"Código parcial VITILLO corregido: {texto_sin_cant} → {alt}")
     if len(parcial) == 1:
         logger.info(f"Código parcial único: {parcial.iloc[0]['codigo']}")
         log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_parcial"})
