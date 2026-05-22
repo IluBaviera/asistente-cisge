@@ -128,6 +128,9 @@ TIPO_ALIAS = {
     "alta temp":        "HT",
     "hightemp":         "HT",
     "ht":               "HT",
+    "celsius":          "HT",
+    "a/temp":           "HT",
+    "a/t":              "HT",
     # VITILLO Everest isobárica (producto distinto al R15)
     # Nota: "4000psi"/"5000psi"/"6000psi" ya NO van aquí — los maneja
     # la detección de presión para incluir también JDE MatrixFlex
