@@ -686,6 +686,15 @@ def consultar(texto: str) -> tuple:
     marca, tipo, medida, color, cantidad, presion, linea, superficie = interpretar_linea(texto)
     logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion} superficie={superficie}")
 
+    # Si tipo=="HT" vino de alias celsius/a-temp pero el usuario también dijo r1 o r2,
+    # post-filtrar resultados por subtipo SAE en descripción
+    sae_subtipo = None
+    if tipo == "HT":
+        if re.search(r'\br1\b', texto.lower()):
+            sae_subtipo = r'r1at|1sn'
+        elif re.search(r'\br2\b', texto.lower()):
+            sae_subtipo = r'r2at|2sn'
+
     # Líneas exclusivas → forzar marca automáticamente
     if linea == "exact":
         marca = "JDEFLEX"
@@ -716,14 +725,20 @@ def consultar(texto: str) -> tuple:
         # Llamada principal con medida_busq (incluye color, EPDM y superficie)
         subtipo_ht = color if tipo == 'HT' else None
         resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht, superficie)
+        if sae_subtipo and not resultados.empty:
+            resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
 
         # Si no encontró, intentar sin color/EPDM
         if resultados.empty and color and medida:
             resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht, superficie)
+            if sae_subtipo and not resultados.empty:
+                resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
 
         # Si tipo detectado pero medida no encontró resultados → mostrar opciones del tipo
         if resultados.empty and tipo and medida:
             resultados_tipo = buscar_por_tipo_medida_marca(tipo, None, marca, presion, linea, subtipo_ht, superficie)
+            if sae_subtipo and not resultados_tipo.empty:
+                resultados_tipo = resultados_tipo[resultados_tipo["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
             if not resultados_tipo.empty:
                 meds = sorted(resultados_tipo["medida_cod"].dropna().str.rstrip('"').str.strip().unique())
                 meds_str = ", ".join(meds)
