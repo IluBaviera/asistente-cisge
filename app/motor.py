@@ -158,13 +158,13 @@ TIPO_ALIAS = {
 # Tipos SAE que pueden tener múltiples tipo_cod en BD
 # (cuando un tipo SAE corresponde a varios códigos de proveedor)
 TIPO_SAE_MAP = {
-    "R1":  ["R1", "TH"],       # R1 puede ser R1 (QF/JDE) o TH (VITILLO)
-    "R2":  ["R2", "TH"],       # R2 también en TH de VITILLO
-    "R12": ["R12", "TSR"],     # R12 puede ser R12 o TSR (VITILLO TSR12xx)
-    "R13": ["TSR"],            # R13 = TSR (VITILLO TSR13xx)
-    "R15": ["R15", "TSR"],     # R15 directo (JDE/QF) y TSR15xx (VITILLO)
-    "4SH": ["4SH", "4SHE", "TS"],   # 4SHE = JDE ExactFlex; TS = VITILLO Teknospir
-    "4SP": ["4SP", "4SPE", "TS"],   # 4SPE = JDE ExactFlex; TS = VITILLO
+    "R1":  ["R1"],
+    "R2":  ["R2"],
+    "R12": ["R12"],
+    "R13": ["R13"],
+    "R15": ["R15"],
+    "4SH": ["4SH", "4SHE"],   # 4SHE = JDE ExactFlex
+    "4SP": ["4SP", "4SPE"],   # 4SPE = JDE ExactFlex
     "R4":  ["R"],              # R4 usa prefijo R en AF
     "R6":  ["R"],              # R6 también usa prefijo R en AF
 }
@@ -259,6 +259,22 @@ try:
         nom = cod_limpio.str.extract(r'(\d{2})(?:[A-Z]{1,3})?$', expand=False)
         df.loc[mask_nan_med, "medida_cod"] = nom.map(lambda x: MEDIDA_NOMINAL.get(str(x)) if pd.notna(x) else None)
         logger.info(f"HYP/no-estándar: tipo inferido en {(~df['tipo_cod'].isna() & mask_nan).sum()} filas")
+
+    # VITILLO: normalizar tipo_cod (TH1SN08 → R1, TH2SN08 → R2, TSR1208 → R12, etc.)
+    mask_vt = df["marca"] == "VITILLO"
+    vt_tipo = df.loc[mask_vt, "tipo_cod"].str.upper().fillna("")
+    for prefix, norm in [
+        ("TH1SN", "R1"),
+        ("TH2SN", "R2"),
+        ("TH2SC", "2SC"),
+        ("TS4SH", "4SH"),
+        ("TS4SP", "4SP"),
+        ("TSR12", "R12"),
+        ("TSR13", "R13"),
+        ("TSR15", "R15"),
+    ]:
+        df.loc[mask_vt & vt_tipo.str.startswith(prefix), "tipo_cod"] = norm
+    logger.info(f"VITILLO: tipo_cod normalizado en {mask_vt.sum()} filas")
 
     df = df.dropna(subset=["codigo", "precio"])
     logger.info(f"Excel cargado: {len(df)} productos, {df['marca'].nunique()} marcas")
