@@ -229,9 +229,30 @@ try:
         r'(\d+\s*\d*/\d+\"?|\d+\")', expand=False
     ).str.strip()
 
-    # Para códigos HYP con formato TFxxx-tipo-nominal, extraer igual
-    # Ej: TFS0012-06 → tipo=R12 (inferido), nominal=06
-    # Estos ya tienen tipo_cod y medida_cod extraídos correctamente por el regex
+    # Para marcas con código no estándar (HYP: TFD0012-08, TFS0012-06, etc.):
+    # tipo_cod y medida_cod quedan NaN porque no siguen el patrón MARCA-TIPO-MEDIDA.
+    # Inferir tipo desde descripción y medida desde el nominal al final del código.
+    mask_nan = df["tipo_cod"].isna()
+    if mask_nan.any():
+        for pat, tipo in [
+            (r'\br12\b',                    'R12'),
+            (r'\br13\b',                    'R13'),
+            (r'\br15\b',                    'R15'),
+            (r'\b4sh\b',                    '4SH'),
+            (r'\b4sp\b',                    '4SP'),
+            (r'\br9\b',                     'R9'),
+            (r'\br7\b',                     'R7'),
+            (r'\br1at\b|\b1sn\b|\b1sc\b',   'R1'),
+            (r'\br2at\b|\b2sn\b|\b2sc\b',   'R2'),
+        ]:
+            aplica = mask_nan & df["descripcion"].str.contains(pat, na=False, case=False) & df["tipo_cod"].isna()
+            df.loc[aplica, "tipo_cod"] = tipo
+
+        mask_nan_med = df["medida_cod"].isna()
+        cod_limpio = df.loc[mask_nan_med, "codigo"].str.upper().str.replace(r'\(PROM\)', '', regex=True).str.strip()
+        nom = cod_limpio.str.extract(r'(\d{2})(?:[A-Z]{1,3})?$', expand=False)
+        df.loc[mask_nan_med, "medida_cod"] = nom.map(lambda x: MEDIDA_NOMINAL.get(str(x)) if pd.notna(x) else None)
+        logger.info(f"HYP/no-estándar: tipo inferido en {(~df['tipo_cod'].isna() & mask_nan).sum()} filas")
 
     df = df.dropna(subset=["codigo", "precio"])
     logger.info(f"Excel cargado: {len(df)} productos, {df['marca'].nunique()} marcas")
