@@ -235,17 +235,18 @@ try:
     mask_nan = df["tipo_cod"].isna()
     if mask_nan.any():
         for pat, tipo in [
-            (r'\br12\b',            'R12'),
-            (r'\br13\b',            'R13'),
-            (r'\br15\b',            'R15'),
-            (r'\b4sh\b',            '4SH'),
-            (r'\b4sp\b',            '4SP'),
-            (r'\br9\b',             'R9'),
-            (r'\br7\b',             'R7'),
-            (r'\br1at\b|\b1sn\b',   'R1'),
-            (r'\br2at\b|\b2sn\b',   'R2'),
-            (r'\b1sc\b',            '1SC'),  # HYP Easy-K: 1SC ≠ R1
-            (r'\b2sc\b',            '2SC'),  # HYP Easy-K: 2SC ≠ R2
+            (r'\bcelsius\b|\ba/temp\b',  'HT'),   # HYP alta temperatura — antes que R1/R2
+            (r'\br12\b',                 'R12'),
+            (r'\br13\b',                 'R13'),
+            (r'\br15\b',                 'R15'),
+            (r'\b4sh\b',                 '4SH'),
+            (r'\b4sp\b',                 '4SP'),
+            (r'\br9\b',                  'R9'),
+            (r'\br7\b',                  'R7'),
+            (r'\br1at\b|\b1sn\b',        'R1'),
+            (r'\br2at\b|\b2sn\b',        'R2'),
+            (r'\b1sc\b',                 '1SC'),
+            (r'\b2sc\b',                 '2SC'),
         ]:
             aplica = mask_nan & df["descripcion"].str.contains(pat, na=False, case=False) & df["tipo_cod"].isna()
             df.loc[aplica, "tipo_cod"] = tipo
