@@ -357,6 +357,14 @@ def get_stock_entry(codigo: str) -> dict | None:
     """Devuelve la entrada de stock buscando por código comercial (codf)."""
     return _stock_by_codf.get(codigo.strip().upper())
 
+def _stock_total(codigo: str) -> tuple[float, dict | None]:
+    """Devuelve (stock_total, entrada). total=0 si agotado o sin registro."""
+    entrada = get_stock_entry(codigo)
+    if not entrada:
+        return 0.0, None
+    total = sum(entrada.get("almacenes", {}).values())
+    return total, entrada
+
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 def _ruta_imagen(tipo_imagen: str):
@@ -420,8 +428,13 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
     desc_monto = subtotal * (descuento / 100)
     total_final = subtotal - desc_monto
     total_igv   = total_final * (1 + IGV)
+
+    total_stock, entrada = _stock_total(fila["codigo"])
+    agotado = (total_stock == 0)
+
+    icono = "⚠️" if agotado else "✅"
     resp = (
-        f"✅ *{fila['codigo']}*\n"
+        f"{icono} *{fila['codigo']}*\n"
         f"📋 {fila['descripcion'].title()}\n"
         f"🏷️ Marca: {fila['marca']}\n"
         f"💰 Precio: ${precio:.2f} x {fila['unidad']}\n"
@@ -434,10 +447,13 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
         resp += f"💵 Total s/IGV: ${total_final:.2f}\n"
     resp += f"🧾 *Total c/IGV: ${total_igv:.2f}*\n"
 
-    entrada = get_stock_entry(fila["codigo"])
-    if entrada and entrada.get("almacenes"):
+    if entrada is None:
+        resp += "⚠️ Sin stock registrado\n"
+    elif agotado:
+        resp += "🚫 *AGOTADO* — sin stock disponible actualmente\n"
+    else:
         umed = entrada.get("umed", "")
-        almacenes = entrada["almacenes"]
+        almacenes = {a: c for a, c in entrada["almacenes"].items() if c > 0}
         if len(almacenes) == 1:
             alm, cant = next(iter(almacenes.items()))
             resp += f"📦 Stock: {cant:.2f} {umed} ({alm})\n"
@@ -445,8 +461,6 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
             resp += "📦 Stock:\n"
             for alm, cant in almacenes.items():
                 resp += f"  • {alm}: {cant:.2f} {umed}\n"
-    else:
-        resp += "⚠️ Sin stock disponible\n"
 
     return resp
 
@@ -869,6 +883,7 @@ def cotizar_multiple(lineas: list) -> str:
     total_descuentos = 0.0
     descuento_global = 0.0
     hay_error     = False
+    hay_agotado   = False
 
     for i, linea in enumerate(lineas, start=1):
         # Detectar línea de descuento global
@@ -919,6 +934,10 @@ def cotizar_multiple(lineas: list) -> str:
             )
             if pct > 0:
                 linea_resp += f" | Desc {pct:.0f}%: -${desc_monto:.2f}"
+            total_stock, _ = _stock_total(fila["codigo"])
+            if total_stock == 0:
+                linea_resp += " | ⚠️ AGOTADO†"
+                hay_agotado = True
             respuesta += linea_resp + "\n\n"
         else:
             respuesta += f"{i}️⃣ ❌ _{linea}_\n\n"
@@ -939,6 +958,8 @@ def cotizar_multiple(lineas: list) -> str:
     respuesta += f"Total s/IGV:    ${total_final:.2f}\n"
     respuesta += f"🧾 *Total c/IGV: ${total_igv:.2f}*"
 
+    if hay_agotado:
+        respuesta += "\n\n_(†) Precio de referencia. Producto sin stock actualmente — consultar disponibilidad._"
     if hay_error:
         respuesta += "\n\n_(*) Algunos ítems no encontrados. Escríbeme para revisar._"
 
