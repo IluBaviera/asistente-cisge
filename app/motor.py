@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import logging
+import time
 import httpx
 import pandas as pd
 from datetime import datetime
@@ -19,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 log_consultas = []
 
-# ─── RUTAS ────────────────────────────────────────────────────────────────────
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-ruta_excel = os.path.join(BASE_DIR, "data", "mangueras_precios.xlsx")
+# ─── RUTAS / API ──────────────────────────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+API_URL  = "https://api.comercialcisgesac.com.pe/stock"
 
 # ─── TABLA NOMINAL ISO → PULGADAS ─────────────────────────────────────────────
 # Fuente: estándar ISO 4397. QF-R2S-05 = 5/16 (error humano en BD corregido aquí)
@@ -210,35 +211,61 @@ PALABRAS_IGNORADAS = {
     "cuanto", "lista", "tipos", "hay", "cual", "cuales", "cuál",
 }
 
-# ─── CARGA DE DATOS ───────────────────────────────────────────────────────────
-try:
-    df = pd.read_excel(ruta_excel)
-    df.columns = [c.strip() for c in df.columns]
-    df["codigo"]      = df["Código"].astype(str).str.strip()
-    df["marca"]       = df["Marca"].astype(str).str.strip().str.upper()
-    df["descripcion"] = df["Descripción"].astype(str).str.strip().str.lower()
-    df["precio"]      = pd.to_numeric(df["Valor Vta."], errors="coerce")
-    df["unidad"]      = df["UND"].astype(str).str.strip()
+# ─── CARGA DE DATOS DESDE API ────────────────────────────────────────────────
+
+_api_data: dict = {}        # caché completo del último fetch exitoso
+_stock_by_codf: dict = {}   # codf.upper() → entrada de stock (para get_stock_entry)
+
+
+def _build_codf_index(data: dict) -> dict:
+    """Índice secundario: código comercial (codf) → entrada completa de stock."""
+    return {
+        v.get("codf", "").strip().upper(): v
+        for v in data.get("stock", {}).values()
+        if v.get("codf", "").strip()
+    }
+
+
+def _build_df_from_api(data: dict) -> pd.DataFrame:
+    """Construye el DataFrame de búsqueda desde la respuesta de la API.
+    Usa el campo 'codf' como código comercial (QF-R1-1/2", VT-TH1SN08, etc.)
+    que es el que usan los vendedores, no la clave interna Navasoft.
+    """
+    _EMPTY = pd.DataFrame(columns=["codigo", "descripcion", "marca", "precio", "unidad", "tipo_cod", "medida_cod"])
+    stock = data.get("stock", {})
+    if not stock:
+        return _EMPTY
+
+    rows = [
+        {
+            # Usar codf (código comercial) como codigo; si está vacío, usar clave Navasoft
+            "codigo":      str(prod.get("codf") or nav_key).strip(),
+            "descripcion": str(prod.get("descr", "")).strip().lower(),
+            "marca":       str(prod.get("marc", "")).strip().upper(),
+            "precio":      prod.get("precio"),
+            "unidad":      str(prod.get("umed", "")).strip(),
+        }
+        for nav_key, prod in stock.items()
+    ]
+    df_new = pd.DataFrame(rows)
+    df_new["precio"] = pd.to_numeric(df_new["precio"], errors="coerce")
 
     # Extraer tipo y medida del código
-    # Patrón estándar: PREFIJO-TIPO-MEDIDA (ej: QF-R1-1/2", JDE-4SH-12)
-    # También captura PREFIJO-TIPOMED (ej: VT-TSER420)
-    df["tipo_cod"]   = df["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z0-9]*[A-Z][A-Z0-9]*)', expand=False).str.upper()
-    df["medida_cod"] = df["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
+    df_new["tipo_cod"]   = df_new["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z0-9]*[A-Z][A-Z0-9]*)', expand=False).str.upper()
+    df_new["medida_cod"] = df_new["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
 
     # Para VITILLO TSER/EVEREST: extraer medida de la descripción
-    mask_tser = df["tipo_cod"].str.startswith("TSER", na=False) & df["medida_cod"].isna()
-    df.loc[mask_tser, "medida_cod"] = df.loc[mask_tser, "descripcion"].str.extract(
+    mask_tser = df_new["tipo_cod"].str.startswith("TSER", na=False) & df_new["medida_cod"].isna()
+    df_new.loc[mask_tser, "medida_cod"] = df_new.loc[mask_tser, "descripcion"].str.extract(
         r'(\d+\s*\d*/\d+\"?|\d+\")', expand=False
     ).str.strip()
 
-    # Para marcas con código no estándar (HYP: TFD0012-08, TFS0012-06, etc.):
-    # tipo_cod y medida_cod quedan NaN porque no siguen el patrón MARCA-TIPO-MEDIDA.
-    # Inferir tipo desde descripción y medida desde el nominal al final del código.
-    mask_nan = df["tipo_cod"].isna()
-    if mask_nan.any():
+    # tipo_cod desde descripción: solo HYP (evita falsos positivos en accesorios
+    # de otras marcas cuyos nombres contienen "1sn", "2sn", "r1at", etc.)
+    mask_hyp = df_new["tipo_cod"].isna() & (df_new["marca"] == "HYP")
+    if mask_hyp.any():
         for pat, tipo in [
-            (r'\bcelsius\b|\ba/temp\b',  'HT'),   # HYP alta temperatura — antes que R1/R2
+            (r'\bcelsius\b|\ba/temp\b',  'HT'),   # antes que R1/R2
             (r'\br12\b',                 'R12'),
             (r'\br13\b',                 'R13'),
             (r'\br15\b',                 'R15'),
@@ -251,18 +278,22 @@ try:
             (r'\b1sc\b',                 '1SC'),
             (r'\b2sc\b',                 '2SC'),
         ]:
-            aplica = mask_nan & df["descripcion"].str.contains(pat, na=False, case=False) & df["tipo_cod"].isna()
-            df.loc[aplica, "tipo_cod"] = tipo
+            aplica = mask_hyp & df_new["descripcion"].str.contains(pat, na=False, case=False) & df_new["tipo_cod"].isna()
+            df_new.loc[aplica, "tipo_cod"] = tipo
+        n_hyp = int((df_new["marca"] == "HYP").sum())
+        logger.info(f"HYP: tipo inferido en {n_hyp} filas")
 
-        mask_nan_med = df["medida_cod"].isna()
-        cod_limpio = df.loc[mask_nan_med, "codigo"].str.upper().str.replace(r'\(PROM\)', '', regex=True).str.strip()
+    # medida_cod desde nominal al final del código: aplica a todos los NaN
+    # (cubre VITILLO 2-segmentos VT-TH1SN08→"08"→"1/2", HYP TFDH011B08→"08"→"1/2", etc.)
+    mask_med_nan = df_new["medida_cod"].isna()
+    if mask_med_nan.any():
+        cod_limpio = df_new.loc[mask_med_nan, "codigo"].str.upper().str.replace(r'\(PROM\)', '', regex=True).str.strip()
         nom = cod_limpio.str.extract(r'(\d{2})(?:[A-Z]{1,3})?$', expand=False)
-        df.loc[mask_nan_med, "medida_cod"] = nom.map(lambda x: MEDIDA_NOMINAL.get(str(x)) if pd.notna(x) else None)
-        logger.info(f"HYP/no-estándar: tipo inferido en {(~df['tipo_cod'].isna() & mask_nan).sum()} filas")
+        df_new.loc[mask_med_nan, "medida_cod"] = nom.map(lambda x: MEDIDA_NOMINAL.get(str(x)) if pd.notna(x) else None)
 
     # VITILLO: normalizar tipo_cod (TH1SN08 → R1, TH2SN08 → R2, TSR1208 → R12, etc.)
-    mask_vt = df["marca"] == "VITILLO"
-    vt_tipo = df.loc[mask_vt, "tipo_cod"].str.upper().fillna("")
+    mask_vt = df_new["marca"] == "VITILLO"
+    vt_tipo = df_new.loc[mask_vt, "tipo_cod"].str.upper().fillna("")
     for prefix, norm in [
         ("TH1SN", "R1"),
         ("TH2SN", "R2"),
@@ -273,48 +304,58 @@ try:
         ("TSR13", "R13"),
         ("TSR15", "R15"),
     ]:
-        df.loc[mask_vt & vt_tipo.str.startswith(prefix), "tipo_cod"] = norm
+        df_new.loc[mask_vt & vt_tipo.str.startswith(prefix), "tipo_cod"] = norm
     logger.info(f"VITILLO: tipo_cod normalizado en {mask_vt.sum()} filas")
 
-    df = df.dropna(subset=["codigo", "precio"])
-    logger.info(f"Excel cargado: {len(df)} productos, {df['marca'].nunique()} marcas")
-except Exception as e:
-    logger.critical(f"ERROR CARGANDO EXCEL: {e}")
-    raise
+    df_new = df_new.dropna(subset=["codigo", "precio"])
+    return df_new
 
-# ─── STOCK EN TIEMPO REAL ────────────────────────────────────────────────────
-STOCK_URL = "https://drive.google.com/uc?export=download&id=1yz6vgjQd1yRGKd30goqWHC0J7d4YRfFF"
 
-_stock_index: dict = {}   # codf.upper() → {almacenes, umed}
-_stock_actualizado: str = ""
+def _load_api_sync() -> dict:
+    """Carga inicial sincrónica con 3 reintentos. Devuelve dict vacío si falla."""
+    for attempt in range(3):
+        try:
+            r = httpx.get(API_URL, timeout=15)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            logger.warning(f"API intento {attempt + 1}/3 fallido: {e}")
+            if attempt < 2:
+                time.sleep(2)
+    return {}
 
-def _build_stock_index(data: dict) -> dict:
-    idx = {}
-    for entry in data.get("stock", {}).values():
-        codf = entry.get("codf", "")
-        if codf:
-            idx[codf.strip().upper()] = {
-                "almacenes": entry.get("almacenes", {}),
-                "umed":      entry.get("umed", ""),
-            }
-    return idx
+
+# Carga inicial al arrancar
+_api_data = _load_api_sync()
+_stock_by_codf = _build_codf_index(_api_data)
+df = _build_df_from_api(_api_data)
+if df.empty:
+    logger.critical("No se pudo cargar datos desde la API al arrancar — df vacío")
+else:
+    logger.info(f"API cargada: {len(df)} productos, {df['marca'].nunique()} marcas, actualizado: {_api_data.get('actualizado', 'N/D')}")
+
 
 async def refresh_stock_loop():
-    global _stock_index, _stock_actualizado
+    """Refresca la caché de la API cada 10 minutos en segundo plano."""
+    global _api_data, _stock_by_codf, df
     while True:
+        await asyncio.sleep(600)
         try:
             async with httpx.AsyncClient() as client:
-                r = await client.get(STOCK_URL, timeout=30, follow_redirects=True)
+                r = await client.get(API_URL, timeout=30)
+                r.raise_for_status()
                 data = r.json()
-            _stock_index = _build_stock_index(data)
-            _stock_actualizado = data.get("actualizado", "")
-            logger.info(f"Stock: {len(_stock_index)} entradas, actualizado: {_stock_actualizado}")
+            _api_data = data
+            _stock_by_codf = _build_codf_index(data)
+            df = _build_df_from_api(data)
+            logger.info(f"API refrescada: {len(df)} productos, actualizado: {data.get('actualizado', 'N/D')}")
         except Exception as e:
-            logger.warning(f"Error cargando stock: {e}")
-        await asyncio.sleep(600)
+            logger.warning(f"Error refrescando API: {e} — manteniendo datos anteriores")
+
 
 def get_stock_entry(codigo: str) -> dict | None:
-    return _stock_index.get(codigo.strip().upper())
+    """Devuelve la entrada de stock buscando por código comercial (codf)."""
+    return _stock_by_codf.get(codigo.strip().upper())
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
