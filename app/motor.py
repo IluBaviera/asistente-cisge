@@ -213,39 +213,34 @@ PALABRAS_IGNORADAS = {
 
 # ─── CARGA DE DATOS DESDE API ────────────────────────────────────────────────
 
-_api_data: dict = {}        # caché completo del último fetch exitoso
-_stock_by_codf: dict = {}   # codf.upper() → entrada de stock (para get_stock_entry)
-
-
-def _build_codf_index(data: dict) -> dict:
-    """Índice secundario: código comercial (codf) → entrada completa de stock."""
-    return {
-        v.get("codf", "").strip().upper(): v
-        for v in data.get("stock", {}).values()
-        if v.get("codf", "").strip()
-    }
+_api_data: dict = {}   # caché completo del último fetch exitoso
 
 
 def _build_df_from_api(data: dict) -> pd.DataFrame:
     """Construye el DataFrame de búsqueda desde la respuesta de la API.
-    Usa el campo 'codf' como código comercial (QF-R1-1/2", VT-TH1SN08, etc.)
-    que es el que usan los vendedores, no la clave interna Navasoft.
+    Cada elemento de 'productos' es una fila; el mismo codigo puede aparecer
+    varias veces con distinta marca (multi-marca). El campo 'almacenes' se
+    guarda directamente en el DataFrame para no necesitar índice secundario.
     """
-    _EMPTY = pd.DataFrame(columns=["codigo", "descripcion", "marca", "precio", "unidad", "tipo_cod", "medida_cod"])
-    stock = data.get("stock", {})
-    if not stock:
+    _COLS = ["codigo", "codigo_interno", "descripcion", "marca",
+             "precio", "unidad", "almacenes", "tipo_cod", "medida_cod"]
+    _EMPTY = pd.DataFrame(columns=_COLS)
+    productos = data.get("productos", [])
+    if not productos:
         return _EMPTY
 
     rows = [
         {
-            # Usar codf (código comercial) como codigo; si está vacío, usar clave Navasoft
-            "codigo":      str(prod.get("codf") or nav_key).strip(),
-            "descripcion": str(prod.get("descr", "")).strip().lower(),
-            "marca":       str(prod.get("marc", "")).strip().upper(),
-            "precio":      prod.get("precio"),
-            "unidad":      str(prod.get("umed", "")).strip(),
+            "codigo":         str(p.get("codigo", "")).strip(),
+            "codigo_interno": str(p.get("codigo_interno", "")).strip(),
+            "descripcion":    str(p.get("descripcion", "")).strip().lower(),
+            "marca":          str(p.get("marca", "")).strip().upper(),
+            "precio":         p.get("precio"),
+            "unidad":         str(p.get("unidad", "")).strip(),
+            "almacenes":      p.get("almacenes") or {},
         }
-        for nav_key, prod in stock.items()
+        for p in productos
+        if str(p.get("codigo", "")).strip()
     ]
     df_new = pd.DataFrame(rows)
     df_new["precio"] = pd.to_numeric(df_new["precio"], errors="coerce")
@@ -327,7 +322,6 @@ def _load_api_sync() -> dict:
 
 # Carga inicial al arrancar
 _api_data = _load_api_sync()
-_stock_by_codf = _build_codf_index(_api_data)
 df = _build_df_from_api(_api_data)
 if df.empty:
     logger.critical("No se pudo cargar datos desde la API al arrancar — df vacío")
@@ -337,7 +331,7 @@ else:
 
 async def refresh_stock_loop():
     """Refresca la caché de la API cada 10 minutos en segundo plano."""
-    global _api_data, _stock_by_codf, df
+    global _api_data, df
     while True:
         await asyncio.sleep(600)
         try:
@@ -346,24 +340,16 @@ async def refresh_stock_loop():
                 r.raise_for_status()
                 data = r.json()
             _api_data = data
-            _stock_by_codf = _build_codf_index(data)
             df = _build_df_from_api(data)
             logger.info(f"API refrescada: {len(df)} productos, actualizado: {data.get('actualizado', 'N/D')}")
         except Exception as e:
             logger.warning(f"Error refrescando API: {e} — manteniendo datos anteriores")
 
 
-def get_stock_entry(codigo: str) -> dict | None:
-    """Devuelve la entrada de stock buscando por código comercial (codf)."""
-    return _stock_by_codf.get(codigo.strip().upper())
-
-def _stock_total(codigo: str) -> tuple[float, dict | None]:
-    """Devuelve (stock_total, entrada). total=0 si agotado o sin registro."""
-    entrada = get_stock_entry(codigo)
-    if not entrada:
-        return 0.0, None
-    total = sum(entrada.get("almacenes", {}).values())
-    return total, entrada
+def _stock_total(fila) -> float:
+    """Suma el stock de todos los almacenes de una fila del DataFrame."""
+    alm = fila["almacenes"] if isinstance(fila["almacenes"], dict) else {}
+    return sum(alm.values())
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -429,8 +415,9 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
     total_final = subtotal - desc_monto
     total_igv   = total_final * (1 + IGV)
 
-    total_stock, entrada = _stock_total(fila["codigo"])
+    total_stock = _stock_total(fila)
     agotado = (total_stock == 0)
+    almacenes_raw = fila["almacenes"] if isinstance(fila["almacenes"], dict) else {}
 
     icono = "⚠️" if agotado else "✅"
     resp = (
@@ -447,13 +434,13 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
         resp += f"💵 Total s/IGV: ${total_final:.2f}\n"
     resp += f"🧾 *Total c/IGV: ${total_igv:.2f}*\n"
 
-    if entrada is None:
+    if not almacenes_raw:
         resp += "⚠️ Sin stock registrado\n"
     elif agotado:
         resp += "🚫 *AGOTADO* — sin stock disponible actualmente\n"
     else:
-        umed = entrada.get("umed", "")
-        almacenes = {a: c for a, c in entrada["almacenes"].items() if c > 0}
+        umed = fila["unidad"]
+        almacenes = {a: c for a, c in almacenes_raw.items() if c > 0}
         if len(almacenes) == 1:
             alm, cant = next(iter(almacenes.items()))
             resp += f"📦 Stock: {cant:.2f} {umed} ({alm})\n"
@@ -476,12 +463,37 @@ def formatear_lista(resultados: pd.DataFrame, titulo: str) -> str:
     resp += "¿Cuál necesitas? Escríbeme el código exacto 👍"
     return resp
 
+def formatear_multi_marca(resultados: pd.DataFrame) -> str:
+    """Muestra las variantes de marca para un mismo código comercial."""
+    primera = resultados.iloc[0]
+    codigo = primera["codigo"]
+    descr  = primera["descripcion"].title()[:60]
+    resp   = f"📋 *{codigo}*\n{descr}\n\n"
+
+    for i, (_, fila) in enumerate(resultados.iterrows(), start=1):
+        total  = _stock_total(fila)
+        precio = float(fila["precio"])
+        marca  = fila["marca"]
+        umed   = fila["unidad"]
+
+        if total == 0:
+            stock_txt = "🚫 AGOTADO"
+        else:
+            alm_con_stock = {a: c for a, c in fila["almacenes"].items() if c > 0}
+            partes = [f"{a.replace('Almacen ', '')}: {c:.0f}" for a, c in alm_con_stock.items()]
+            stock_txt = f"📦 {' | '.join(partes)} {umed}"
+
+        resp += f"{i}️⃣ *{marca}*  →  ${precio:.2f} x {umed}\n   {stock_txt}\n\n"
+
+    resp += f"_Para cotizar escribe: {codigo} + marca_\n"
+    resp += f"_Ej: {codigo} {primera['marca']}_"
+    return resp
+
 # ─── BÚSQUEDAS ────────────────────────────────────────────────────────────────
 
-def buscar_por_codigo(codigo: str):
-    """Búsqueda exacta por código (case-insensitive)."""
-    r = df[df["codigo"].str.upper() == codigo.upper().strip()]
-    return r.iloc[0] if not r.empty else None
+def buscar_por_codigo(codigo: str) -> pd.DataFrame:
+    """Búsqueda exacta por código (case-insensitive). Devuelve DataFrame (puede ser multi-marca)."""
+    return df[df["codigo"].str.upper() == codigo.upper().strip()]
 
 def buscar_por_codigo_parcial(texto: str) -> pd.DataFrame:
     """Búsqueda por fragmento de código."""
@@ -724,14 +736,32 @@ def consultar(texto: str) -> tuple:
             "¿Qué necesitas cotizar? 💬"
         )
 
+    # ── Estrategia 0: desambiguación "código + marca" (ej: "045-08-06 DME") ──────
+    # Permite al cliente elegir una variante específica de un producto multi-marca.
+    tokens = texto_sin_cant.rsplit(None, 1)
+    if len(tokens) == 2:
+        posible_cod, posible_marca = tokens
+        exactos_cod = buscar_por_codigo(posible_cod)
+        if not exactos_cod.empty:
+            variante = exactos_cod[exactos_cod["marca"].str.upper() == posible_marca.upper()]
+            if not variante.empty:
+                fila = variante.iloc[0]
+                logger.info(f"Código+marca: {fila['codigo']} / {fila['marca']}")
+                log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_marca"})
+                return _ruta_imagen(str(fila.get("tipo_cod", "") or "").lower()), formatear_resultado(fila, cantidad, descuento)
+
     # ── Estrategia 1: código exacto ───────────────────────────────────────────
-    fila = buscar_por_codigo(texto_sin_cant)
-    if fila is not None:
-        logger.info(f"Código exacto: {fila['codigo']}")
-        log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_exacto"})
-        tipo_cod = str(fila.get("tipo_cod", "") or "").lower()
-        imagen = _ruta_imagen(tipo_cod)
-        return imagen, formatear_resultado(fila, cantidad, descuento)
+    exactos = buscar_por_codigo(texto_sin_cant)
+    if not exactos.empty:
+        if len(exactos) == 1:
+            fila = exactos.iloc[0]
+            logger.info(f"Código exacto: {fila['codigo']}")
+            log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_exacto"})
+            return _ruta_imagen(str(fila.get("tipo_cod", "") or "").lower()), formatear_resultado(fila, cantidad, descuento)
+        else:
+            logger.info(f"Código multi-marca: {exactos.iloc[0]['codigo']} ({len(exactos)} variantes)")
+            log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_multi_marca"})
+            return None, formatear_multi_marca(exactos)
 
     # ── Estrategia 2: código parcial ──────────────────────────────────────────
     parcial = buscar_por_codigo_parcial(texto_sin_cant)
@@ -898,14 +928,29 @@ def cotizar_multiple(lineas: list) -> str:
 
         fila = None
 
-        # 1. Código exacto
-        fila = buscar_por_codigo(texto_sin_cant)
+        fila = None
+        marca_auto = ""   # marca elegida automáticamente en caso multi-marca
 
-        # 2. Código parcial único
+        # 1. Código exacto (posiblemente multi-marca → auto-seleccionar)
+        exactos = buscar_por_codigo(texto_sin_cant)
+        if not exactos.empty:
+            if len(exactos) == 1:
+                fila = exactos.iloc[0]
+            else:
+                stocks = exactos.apply(_stock_total, axis=1)
+                fila = exactos.loc[stocks.idxmax() if stocks.max() > 0 else exactos["precio"].idxmin()]
+                marca_auto = fila["marca"]
+
+        # 2. Código parcial — único código comercial (posiblemente multi-marca)
         if fila is None:
             parcial = buscar_por_codigo_parcial(texto_sin_cant)
-            if len(parcial) == 1:
-                fila = parcial.iloc[0]
+            if not parcial.empty and parcial["codigo"].nunique() == 1:
+                if len(parcial) == 1:
+                    fila = parcial.iloc[0]
+                else:
+                    stocks = parcial.apply(_stock_total, axis=1)
+                    fila = parcial.loc[stocks.idxmax() if stocks.max() > 0 else parcial["precio"].idxmin()]
+                    marca_auto = fila["marca"]
 
         # 3. Tipo + medida + marca
         if fila is None:
@@ -928,14 +973,14 @@ def cotizar_multiple(lineas: list) -> str:
             subtotal_bruto   += subtotal
             total_descuentos += desc_monto
             desc_txt    = fila['descripcion'].title()[:45]
+            marca_nota  = f" ({marca_auto})" if marca_auto else ""
             linea_resp  = (
-                f"{i}️⃣ *{fila['codigo']}* — {desc_txt}\n"
+                f"{i}️⃣ *{fila['codigo']}*{marca_nota} — {desc_txt}\n"
                 f"   x{cantidad} × ${precio:.2f} | Subtotal: ${subtotal:.2f}"
             )
             if pct > 0:
                 linea_resp += f" | Desc {pct:.0f}%: -${desc_monto:.2f}"
-            total_stock, _ = _stock_total(fila["codigo"])
-            if total_stock == 0:
+            if _stock_total(fila) == 0:
                 linea_resp += " | ⚠️ AGOTADO†"
                 hay_agotado = True
             respuesta += linea_resp + "\n\n"
