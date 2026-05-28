@@ -495,9 +495,9 @@ def buscar_por_codigo(codigo: str) -> pd.DataFrame:
     """Búsqueda exacta por código (case-insensitive). Devuelve DataFrame (puede ser multi-marca)."""
     return df[df["codigo"].str.upper() == codigo.upper().strip()]
 
-def buscar_por_codigo_parcial(texto: str) -> pd.DataFrame:
-    """Búsqueda por fragmento de código."""
-    return df[df["codigo"].str.upper().str.contains(re.escape(texto.upper()), na=False)]
+def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
+    """Búsqueda por prefijo de código (case-insensitive)."""
+    return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
 def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
@@ -763,25 +763,28 @@ def consultar(texto: str) -> tuple:
             log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_multi_marca"})
             return None, formatear_multi_marca(exactos)
 
-    # ── Estrategia 2: código parcial ──────────────────────────────────────────
-    parcial = buscar_por_codigo_parcial(texto_sin_cant)
-    # Fallback VITILLO: códigos sin guion entre tipo y nominal (VT-TH1SN03).
-    # El vendedor a veces inserta la letra de color: VT-TH1SNN03 → VT-TH1SN03
-    if parcial.empty:
-        m_vt = re.match(r'^(.+)([A-Z])(\d{2}(?:SL)?)$', texto_sin_cant.upper().strip())
-        if m_vt:
-            alt = m_vt.group(1) + m_vt.group(3)
-            parcial = buscar_por_codigo_parcial(alt)
-            if not parcial.empty:
-                logger.info(f"Código parcial VITILLO corregido: {texto_sin_cant} → {alt}")
-    if len(parcial) == 1:
-        logger.info(f"Código parcial único: {parcial.iloc[0]['codigo']}")
-        log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_parcial"})
-        tipo_cod = str(parcial.iloc[0].get("tipo_cod", "") or "").lower()
-        imagen = _ruta_imagen(tipo_cod)
-        return imagen, formatear_resultado(parcial.iloc[0], cantidad, descuento)
-    elif 1 < len(parcial) <= 10:
-        return None, formatear_lista(parcial, f"Encontré {len(parcial)} productos similares:")
+    # ── Estrategia 2: prefijo de código ──────────────────────────────────────
+    if len(texto_sin_cant) >= 3:
+        prefijo = buscar_por_codigo_prefijo(texto_sin_cant)
+        # Fallback VITILLO: el vendedor a veces inserta una letra extra de color
+        # (VT-TH1SNN08 → VT-TH1SN08); quitar esa letra y reintentar con prefijo
+        if prefijo.empty:
+            m_vt = re.match(r'^(.+)([A-Z])(\d{2}(?:SL)?)$', texto_sin_cant.upper().strip())
+            if m_vt:
+                alt = m_vt.group(1) + m_vt.group(3)
+                prefijo = buscar_por_codigo_prefijo(alt)
+                if not prefijo.empty:
+                    logger.info(f"Prefijo VITILLO corregido: {texto_sin_cant} → {alt}")
+        if len(prefijo) == 1:
+            fila = prefijo.iloc[0]
+            logger.info(f"Prefijo único: {fila['codigo']}")
+            log_consultas.append({"timestamp": datetime.now().isoformat(), "mensaje": texto, "tipo": "codigo_prefijo"})
+            return _ruta_imagen(str(fila.get("tipo_cod", "") or "").lower()), formatear_resultado(fila, cantidad, descuento)
+        elif 1 < len(prefijo) <= 15:
+            return None, formatear_lista(prefijo, f"Encontré {len(prefijo)} productos con ese prefijo:")
+        elif len(prefijo) > 15:
+            lista = formatear_lista(prefijo.head(15), f"Mostrando 15 de {len(prefijo)} productos con ese prefijo:")
+            return None, lista + "\n_Hay más resultados — escribe más caracteres para filtrar._"
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
     marca, tipo, medida, color, cantidad, presion, linea, superficie = interpretar_linea(texto)
@@ -941,9 +944,9 @@ def cotizar_multiple(lineas: list) -> str:
                 fila = exactos.loc[stocks.idxmax() if stocks.max() > 0 else exactos["precio"].idxmin()]
                 marca_auto = fila["marca"]
 
-        # 2. Código parcial — único código comercial (posiblemente multi-marca)
+        # 2. Código por prefijo — único código comercial (posiblemente multi-marca)
         if fila is None:
-            parcial = buscar_por_codigo_parcial(texto_sin_cant)
+            parcial = buscar_por_codigo_prefijo(texto_sin_cant)
             if not parcial.empty and parcial["codigo"].nunique() == 1:
                 if len(parcial) == 1:
                     fila = parcial.iloc[0]
