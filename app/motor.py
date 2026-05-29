@@ -276,6 +276,13 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
     df_new["tipo_cod"]   = df_new["codigo"].str.extract(r'^[A-Z0-9]+-([A-Z0-9]*[A-Z][A-Z0-9]*)', expand=False).str.upper()
     df_new["medida_cod"] = df_new["codigo"].str.extract(r'^[A-Z0-9]+-[A-Z0-9]+-(.+)$', expand=False).str.strip()
 
+    def _extraer_medidas_lista(codigo: str) -> list:
+        """Extrae todas las medidas nominales del código como lista ordenada."""
+        segmentos = re.findall(r'(?<![A-Z])(\d{2})(?![A-Z\d])', codigo.upper())
+        return [MEDIDA_NOMINAL[s] for s in segmentos if s in MEDIDA_NOMINAL]
+
+    df_new["medidas_cod"] = df_new["codigo"].apply(_extraer_medidas_lista)
+
     # Para VITILLO TSER/EVEREST: extraer medida de la descripción
     mask_tser = df_new["tipo_cod"].str.startswith("TSER", na=False) & df_new["medida_cod"].isna()
     df_new.loc[mask_tser, "medida_cod"] = df_new.loc[mask_tser, "descripcion"].str.extract(
@@ -530,9 +537,10 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
+    medidas_aplicadas = False
     if subfamilias:
         r = r[r["subfamilia"].isin(subfamilias)]
     if tipo:
@@ -578,7 +586,17 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["descripcion"].str.contains("corrugada", na=False, case=False)]
     elif superficie == "lisa":
         r = r[~r["descripcion"].str.contains("corrugada", na=False, case=False)]
-    if medida:
+    if medidas and not medidas_aplicadas:
+        subfams_actuales = set(r["subfamilia"].unique()) if not r.empty else set()
+        es_adaptador = bool(subfams_actuales & {"ADAPTADORES I", "ADAPTADORES II"})
+        if es_adaptador:
+            if len(medidas) == 1:
+                r = r[r["medidas_cod"].apply(lambda m: medidas[0] in m)]
+            else:
+                r = r[r["medidas_cod"].apply(lambda m: m == medidas)]
+            medidas_aplicadas = True
+
+    if medida and not medidas_aplicadas:
         medida_norm = medida.upper().strip().rstrip('"').strip()
         medida_cod_norm = r["medida_cod"].str.upper().str.strip().str.rstrip('"').str.strip()
         mascara = medida_cod_norm == medida_norm
@@ -613,7 +631,7 @@ def interpretar_linea(texto: str) -> tuple:
     Extrae (marca, tipo, medida, color, cantidad, presion) del texto libre del cliente.
     """
     cantidad  = extraer_cantidad(texto)
-    texto_lim = re.sub(r'\bx\s*\d+', '',texto).strip()
+    texto_lim = re.sub(r'\bx\s*\d+(?!\s*/\d)', '',texto).strip()
     texto_up  = texto_lim.upper()
     texto_lo  = normalizar_medida_texto(texto_lim.lower())
 
@@ -699,6 +717,19 @@ def interpretar_linea(texto: str) -> tuple:
                 tipo = t
                 break
 
+    # ── Medidas múltiples (ej: 1/4 x 1/4, 1/2 x 3/4) ───────────────────────
+    medidas = []
+    texto_lo_norm = re.sub(r'(\d)\s*x\s*(\d)', r'\1 x \2', texto_lo)
+    partes = re.split(r'\s+x\s+', texto_lo_norm)
+    patron_medida = r'(\d+\s+\d+/\d+|\d+/\d+|\d+\"?)'
+    medidas_candidatas = []
+    for parte in partes:
+        mm = re.search(patron_medida, parte.strip())
+        if mm:
+            medidas_candidatas.append(normalizar_medida_texto(mm.group(1).strip()))
+    if len(medidas_candidatas) >= 2:
+        medidas = medidas_candidatas
+
     # ── Medida — buscar fracciones, enteros, nominales ────────────────────────
     medida = None
 
@@ -745,8 +776,8 @@ def interpretar_linea(texto: str) -> tuple:
         tipo = "R1S"
         superficie = None
 
-    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion} linea={linea} superficie={superficie} subfamilias={subfamilias_detectadas}")
-    return marca, tipo, medida, color, cantidad, presion, linea, superficie, subfamilias_detectadas
+    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} medidas={medidas} color={color} cant={cantidad} presion={presion} linea={linea} superficie={superficie} subfamilias={subfamilias_detectadas}")
+    return marca, tipo, medida, medidas, color, cantidad, presion, linea, superficie, subfamilias_detectadas
 
 # ─── CONSULTA SIMPLE ──────────────────────────────────────────────────────────
 
@@ -837,8 +868,8 @@ def consultar(texto: str) -> tuple:
             return None, lista + "\n_Hay más resultados — escribe más caracteres para filtrar._"
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
-    marca, tipo, medida, color, cantidad, presion, linea, superficie, subfamilias = interpretar_linea(texto)
-    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion} superficie={superficie} subfamilias={subfamilias}")
+    marca, tipo, medida, medidas, color, cantidad, presion, linea, superficie, subfamilias = interpretar_linea(texto)
+    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} medidas={medidas} linea={linea} presion={presion} superficie={superficie} subfamilias={subfamilias}")
 
     # Si tipo=="HT" vino de alias celsius/a-temp pero el usuario también dijo r1 o r2,
     # post-filtrar resultados por subtipo SAE en descripción
@@ -878,13 +909,13 @@ def consultar(texto: str) -> tuple:
 
         # Llamada principal con medida_busq (incluye color, EPDM y superficie)
         subtipo_ht = color if tipo == 'HT' else None
-        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht, superficie, subfamilias)
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht, superficie, subfamilias, medidas)
         if sae_subtipo and not resultados.empty:
             resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
 
         # Si no encontró, intentar sin color/EPDM
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht, superficie, subfamilias)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht, superficie, subfamilias, medidas)
             if sae_subtipo and not resultados.empty:
                 resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
 
@@ -915,6 +946,9 @@ def consultar(texto: str) -> tuple:
                                    "marca": marca, "tipo": tipo, "medida": medida})
             imagen = _ruta_imagen((tipo or "").lower())
             return imagen, formatear_resultado(resultados.iloc[0], cantidad, descuento)
+
+        elif len(resultados) > 1 and resultados["codigo"].nunique() == 1:
+            return None, formatear_multi_marca(resultados)
 
         elif 1 < len(resultados) <= 12:
             return None, formatear_lista(resultados, f"Encontré {len(resultados)} opciones:")
@@ -1007,16 +1041,20 @@ def cotizar_multiple(lineas: list) -> str:
 
         # 3. Tipo + medida + marca
         if fila is None:
-            marca, tipo, medida, color, cantidad, presion, linea_prem, sup, subfamilias = interpretar_linea(linea)
+            marca, tipo, medida, medidas, color, cantidad, presion, linea_prem, sup, subfamilias = interpretar_linea(linea)
             if tipo or marca or medida:
                 medida_busq = medida
                 if color and medida:
                     medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
-                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea_prem, None, sup, subfamilias)
+                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea_prem, None, sup, subfamilias, medidas)
                 if resultados.empty and color:
-                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea_prem, None, sup, subfamilias)
+                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea_prem, None, sup, subfamilias, medidas)
                 if len(resultados) == 1:
                     fila = resultados.iloc[0]
+                elif len(resultados) > 1 and resultados["codigo"].nunique() == 1:
+                    stocks = resultados.apply(_stock_total, axis=1)
+                    fila = resultados.loc[stocks.idxmax() if stocks.max() > 0 else resultados["precio"].idxmin()]
+                    marca_auto = fila["marca"]
 
         if fila is not None:
             precio      = float(fila["precio"])
