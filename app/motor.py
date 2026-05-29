@@ -46,6 +46,30 @@ MEDIDA_NOMINAL = {
     "64": "2 1/2", # SW-HCA-64: desc dice 2 1/2 (nominal 64 incorrecto en BD)
 }
 
+# ─── SUBFAMILIAS (categorías del ERP) ────────────────────────────────────────
+SUBFAMILIA_MAP = {
+    "adaptador":  ["ADAPTADORES I", "ADAPTADORES II"],
+    "adap":       ["ADAPTADORES I", "ADAPTADORES II"],
+    "espiga":     ["ESPIGAS I", "ESPIGAS II"],
+    "manguera":   ["MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES"],
+    "mang":       ["MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES"],
+    "brida":      ["BRIDAS"],
+    "camlock":    ["CAMLOCK"],
+    "ferrula":    ["FERRULAS"],
+    "férrula":    ["FERRULAS"],
+    "valvula":    ["VALVULAS"],
+    "válvula":    ["VALVULAS"],
+    "acople":     ["ACOPLE RAPIDO", "ACOPLE GARRA", "ACOPLE DIAGNÓSTICO"],
+    "prearmada":  ["PREARMADAS"],
+    "niple":      ["NIPLES"],
+    "tuberia":    ["TUBERIAS HIDRAULICAS"],
+    "tubo":       ["TUBERIAS HIDRAULICAS"],
+    "manometro":  ["MANOMETROS"],
+    "manómetro":  ["MANOMETROS"],
+    "protector":  ["PROTECTORES DE MANGUERAS"],
+    "abrazadera": ["ABRAZADERAS", "ABRAZADERAS DE TUBOS"],
+}
+
 # ─── ALIAS DE MARCA ───────────────────────────────────────────────────────────
 MARCA_ALIAS = {
     "qf":           "QF",
@@ -111,7 +135,7 @@ TIPO_ALIAS = {
     "trenzado":         "R1",
     "espiral":          "R12",
     "r12":              "R12",
-    "msha":             "R12",        # cliente dice "msha" queriendo decir espiral MSHA
+
     "alta presion":     "4SH",
     "alta presión":     "4SH",
     "jack":             "JACK",
@@ -223,7 +247,8 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
     guarda directamente en el DataFrame para no necesitar índice secundario.
     """
     _COLS = ["codigo", "codigo_interno", "descripcion", "marca",
-             "precio", "unidad", "almacenes", "tipo_cod", "medida_cod"]
+             "precio", "unidad", "almacenes", "subfamilia", "grupo",
+             "tipo_cod", "medida_cod"]
     _EMPTY = pd.DataFrame(columns=_COLS)
     productos = data.get("productos", [])
     if not productos:
@@ -238,6 +263,8 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
             "precio":         p.get("precio"),
             "unidad":         str(p.get("unidad", "")).strip(),
             "almacenes":      p.get("almacenes") or {},
+            "subfamilia":     str(p.get("subfamilia", "")).strip().upper(),
+            "grupo":          str(p.get("grupo", "")).strip().upper(),
         }
         for p in productos
         if str(p.get("codigo", "")).strip()
@@ -301,6 +328,10 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
     ]:
         df_new.loc[mask_vt & vt_tipo.str.startswith(prefix), "tipo_cod"] = norm
     logger.info(f"VITILLO: tipo_cod normalizado en {mask_vt.sum()} filas")
+
+    # R4/R6 mal clasificados en el ERP — corregir subfamilia
+    mask_r4r6 = df_new["grupo"].isin(["R4", "R6"])
+    df_new.loc[mask_r4r6, "subfamilia"] = "MANGUERAS HIDRAULICAS"
 
     df_new = df_new.dropna(subset=["codigo", "precio"])
     return df_new
@@ -499,32 +530,34 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
+    if subfamilias:
+        r = r[r["subfamilia"].isin(subfamilias)]
     if tipo:
         tipo_up = tipo.upper()
-        # Verificar si hay múltiples tipo_cod posibles para este tipo SAE
-        tipos_posibles = TIPO_SAE_MAP.get(tipo_up, [tipo_up])
-        mascara_tipo = r["tipo_cod"].str.upper().isin(tipos_posibles)
-        # Para tipos que comparten tipo_cod TSR (R12/R13/R15) o R (R4/R6):
-        # filtrar también por descripción
-        if tipo_up in ("R4", "R6", "R13"):
-            mascara_tipo = mascara_tipo & r["descripcion"].str.contains(tipo_up, na=False, case=False)
-        elif tipo_up == "R15":
-            # R15 directo ya está correcto; TSR necesita filtrar por descripción
-            mascara_tsr15 = (r["tipo_cod"].str.upper() == "TSR") & r["descripcion"].str.contains("R15", na=False, case=False)
-            mascara_r15_directo = r["tipo_cod"].str.upper() == "R15"
-            mascara_tipo = mascara_r15_directo | mascara_tsr15
-        elif tipo_up == "R12":
-            mascara_tsr12 = r["tipo_cod"].str.upper() == "TSR"
-            mascara_tsr12 = mascara_tsr12 & r["descripcion"].str.contains("R12", na=False, case=False)
-            mascara_r12_directo = r["tipo_cod"].str.upper() == "R12"
-            mascara_tipo = mascara_r12_directo | mascara_tsr12
-        elif tipo_up == "TSER":
-            # VITILLO Everest: tipo_cod es "TSER416", "TSER412", etc. → startswith
-            mascara_tipo = r["tipo_cod"].str.upper().str.startswith("TSER", na=False)
-        r = r[mascara_tipo]
+        # Intento 1: match exacto por grupo (campo directo del ERP)
+        mask_grupo = r["grupo"].str.upper() == tipo_up
+        if mask_grupo.any():
+            r = r[mask_grupo]
+        else:
+            # Fallback: lógica anterior por tipo_cod
+            tipos_posibles = TIPO_SAE_MAP.get(tipo_up, [tipo_up])
+            mascara_tipo = r["tipo_cod"].str.upper().isin(tipos_posibles)
+            if tipo_up in ("R4", "R6", "R13"):
+                mascara_tipo = mascara_tipo & r["descripcion"].str.contains(tipo_up, na=False, case=False)
+            elif tipo_up == "R15":
+                mascara_tsr15 = (r["tipo_cod"].str.upper() == "TSR") & r["descripcion"].str.contains("R15", na=False, case=False)
+                mascara_r15_directo = r["tipo_cod"].str.upper() == "R15"
+                mascara_tipo = mascara_r15_directo | mascara_tsr15
+            elif tipo_up == "R12":
+                mascara_tsr12 = (r["tipo_cod"].str.upper() == "TSR") & r["descripcion"].str.contains("R12", na=False, case=False)
+                mascara_r12_directo = r["tipo_cod"].str.upper() == "R12"
+                mascara_tipo = mascara_r12_directo | mascara_tsr12
+            elif tipo_up == "TSER":
+                mascara_tipo = r["tipo_cod"].str.upper().str.startswith("TSER", na=False)
+            r = r[mascara_tipo]
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if subtipo and subtipo in ("1SN", "2SN"):
@@ -584,6 +617,14 @@ def interpretar_linea(texto: str) -> tuple:
     texto_up  = texto_lim.upper()
     texto_lo  = normalizar_medida_texto(texto_lim.lower())
 
+    # ── Subfamilia (categoría ERP) ────────────────────────────────────────────
+    subfamilias_detectadas = None
+    for alias in sorted(SUBFAMILIA_MAP, key=len, reverse=True):
+        if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
+            subfamilias_detectadas = SUBFAMILIA_MAP[alias]
+            texto_lo = re.sub(rf'\b{re.escape(alias)}\b', '', texto_lo).strip()
+            break
+
     # ── Línea premium (exactflex, shieldflex, teknospir) ──────────────────────
     linea = None
     for alias in sorted(LINEA_ALIAS, key=len, reverse=True):
@@ -635,14 +676,23 @@ def interpretar_linea(texto: str) -> tuple:
             if letra == "S":
                 color_de_letra_s = True
 
-    # ── Tipo — primero sinónimos en español, luego tipos directos del catálogo
+    # ── Tipo — 1) grupo ERP, 2) alias estático, 3) tipo_cod fallback ────────────
     tipo = None
-    for alias in sorted(TIPO_ALIAS, key=len, reverse=True):
-        if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
-            tipo = TIPO_ALIAS[alias]
+    # Búsqueda dinámica contra grupos reales del ERP (longest match primero)
+    grupos_bd = sorted(df["grupo"].dropna().unique().tolist(), key=len, reverse=True)
+    for g in grupos_bd:
+        if re.search(rf'\b{re.escape(g)}\b', texto_up):
+            tipo = g
             break
 
     if not tipo:
+        for alias in sorted(TIPO_ALIAS, key=len, reverse=True):
+            if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
+                tipo = TIPO_ALIAS[alias]
+                break
+
+    if not tipo:
+        # Fallback: búsqueda contra tipo_cod (comportamiento anterior)
         tipos_bd = sorted(df["tipo_cod"].dropna().unique().tolist(), key=len, reverse=True)
         for t in tipos_bd:
             if re.search(rf'\b{re.escape(t)}\b', texto_up):
@@ -695,8 +745,8 @@ def interpretar_linea(texto: str) -> tuple:
         tipo = "R1S"
         superficie = None
 
-    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion} linea={linea} superficie={superficie}")
-    return marca, tipo, medida, color, cantidad, presion, linea, superficie
+    logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} color={color} cant={cantidad} presion={presion} linea={linea} superficie={superficie} subfamilias={subfamilias_detectadas}")
+    return marca, tipo, medida, color, cantidad, presion, linea, superficie, subfamilias_detectadas
 
 # ─── CONSULTA SIMPLE ──────────────────────────────────────────────────────────
 
@@ -787,8 +837,8 @@ def consultar(texto: str) -> tuple:
             return None, lista + "\n_Hay más resultados — escribe más caracteres para filtrar._"
 
     # ── Estrategia 3: tipo + medida + marca + color ───────────────────────────
-    marca, tipo, medida, color, cantidad, presion, linea, superficie = interpretar_linea(texto)
-    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion} superficie={superficie}")
+    marca, tipo, medida, color, cantidad, presion, linea, superficie, subfamilias = interpretar_linea(texto)
+    logger.info(f"E3 → marca={marca} tipo={tipo} medida={medida} linea={linea} presion={presion} superficie={superficie} subfamilias={subfamilias}")
 
     # Si tipo=="HT" vino de alias celsius/a-temp pero el usuario también dijo r1 o r2,
     # post-filtrar resultados por subtipo SAE en descripción
@@ -828,19 +878,19 @@ def consultar(texto: str) -> tuple:
 
         # Llamada principal con medida_busq (incluye color, EPDM y superficie)
         subtipo_ht = color if tipo == 'HT' else None
-        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht, superficie)
+        resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea, subtipo_ht, superficie, subfamilias)
         if sae_subtipo and not resultados.empty:
             resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
 
         # Si no encontró, intentar sin color/EPDM
         if resultados.empty and color and medida:
-            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht, superficie)
+            resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea, subtipo_ht, superficie, subfamilias)
             if sae_subtipo and not resultados.empty:
                 resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
 
         # Si tipo detectado pero medida no encontró resultados → mostrar opciones del tipo
         if resultados.empty and tipo and medida:
-            resultados_tipo = buscar_por_tipo_medida_marca(tipo, None, marca, presion, linea, subtipo_ht, superficie)
+            resultados_tipo = buscar_por_tipo_medida_marca(tipo, None, marca, presion, linea, subtipo_ht, superficie, subfamilias)
             if sae_subtipo and not resultados_tipo.empty:
                 resultados_tipo = resultados_tipo[resultados_tipo["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
             if not resultados_tipo.empty:
@@ -957,14 +1007,14 @@ def cotizar_multiple(lineas: list) -> str:
 
         # 3. Tipo + medida + marca
         if fila is None:
-            marca, tipo, medida, color, cantidad, presion, linea_prem, sup = interpretar_linea(linea)
+            marca, tipo, medida, color, cantidad, presion, linea_prem, sup, subfamilias = interpretar_linea(linea)
             if tipo or marca or medida:
                 medida_busq = medida
                 if color and medida:
                     medida_busq = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
-                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea_prem, None, sup)
+                resultados = buscar_por_tipo_medida_marca(tipo, medida_busq, marca, presion, linea_prem, None, sup, subfamilias)
                 if resultados.empty and color:
-                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea_prem, None, sup)
+                    resultados = buscar_por_tipo_medida_marca(tipo, medida, marca, presion, linea_prem, None, sup, subfamilias)
                 if len(resultados) == 1:
                     fila = resultados.iloc[0]
 
