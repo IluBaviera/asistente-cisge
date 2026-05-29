@@ -79,11 +79,15 @@ def verificar_webhook(request: Request):
 @app.post("/webhook")
 async def recibir_mensaje(request: Request):
     data = await request.json()
+    asyncio.create_task(_procesar_mensaje(data))
+    return {"status": "ok"}
+
+async def _procesar_mensaje(data: dict):
     try:
         value = data["entry"][0]["changes"][0]["value"]
         if "messages" not in value:
-            return {"status": "ok"}
-        msg = value["messages"][0]
+            return
+        msg     = value["messages"][0]
         msg_id  = msg["id"]
         mensaje = msg["text"]["body"]
         numero  = msg["from"]
@@ -91,24 +95,18 @@ async def recibir_mensaje(request: Request):
         # Whitelist fase de pruebas
         if numero not in NUMEROS_PERMITIDOS:
             logger.info(f"Número no autorizado ignorado: {numero}")
-            return {"status": "ok"}
+            return
 
-        # Deduplicación
         if msg_id in mensajes_procesados:
-            logger.info(f"Mensaje duplicado ignorado: {msg_id}")
-            return {"status": "duplicado"}
-
+            return
         mensajes_procesados.add(msg_id)
         if len(mensajes_procesados) > MAX_IDS:
             mensajes_procesados.clear()
 
         _, respuesta = consultar(mensaje)
         await enviar_whatsapp(numero, respuesta)
-
     except Exception as e:
-        logger.error(f"Error en webhook: {e}", exc_info=True)
-
-    return {"status": "ok"}
+        logger.error(f"Error en _procesar_mensaje: {e}", exc_info=True)
 
 async def enviar_whatsapp(numero: str, texto: str):
     url     = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
