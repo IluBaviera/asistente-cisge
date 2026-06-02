@@ -240,13 +240,13 @@ PALABRAS_IGNORADAS = {
 _api_data: dict = {}        # caché completo del último fetch exitoso
 _aliases_marcas: dict = {}  # {alias_lower: nombre_oficial} cargado desde /marcas
 
-MARCAS_API_URL = "http://192.168.2.13:8000/marcas"
+MARCAS_API_URL = "https://api.comercialcisgesac.com.pe/marcas"
 
 
 def cargar_aliases_marcas() -> dict:
     """Carga aliases de marcas desde la API interna. Devuelve {} si falla."""
     try:
-        r = httpx.get(MARCAS_API_URL, timeout=10)
+        r = httpx.get(MARCAS_API_URL, timeout=5)
         r.raise_for_status()
         data = r.json()
         # Espera {alias: nombre_oficial} o lista de {alias, nombre}

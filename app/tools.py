@@ -4,7 +4,7 @@ from app.motor import consultar, cotizar_multiple
 
 logger = logging.getLogger(__name__)
 
-STOCK_API = "http://192.168.2.13:8000/stock"
+STOCK_API = "https://api.comercialcisgesac.com.pe/stock"
 
 
 def tool_buscar_producto(query: str) -> str:
@@ -16,7 +16,7 @@ def tool_buscar_producto(query: str) -> str:
 def tool_ver_stock(codigo: str, almacen: str = None) -> str:
     """Consulta stock en tiempo real para un código. Filtra por almacén si se indica."""
     try:
-        r = httpx.get(STOCK_API, timeout=10)
+        r = httpx.get(STOCK_API, timeout=5)
         r.raise_for_status()
         data = r.json()
         productos = data.get("productos", [])
