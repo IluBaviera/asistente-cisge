@@ -1,4 +1,6 @@
-__pycache__/ 
-*.pyc 
-*.log 
-"app/data/~*" 
+__pycache__/
+*.pyc
+*.log
+"app/data/~*"
+.env
+

@@ -237,7 +237,27 @@ PALABRAS_IGNORADAS = {
 
 # ─── CARGA DE DATOS DESDE API ────────────────────────────────────────────────
 
-_api_data: dict = {}   # caché completo del último fetch exitoso
+_api_data: dict = {}        # caché completo del último fetch exitoso
+_aliases_marcas: dict = {}  # {alias_lower: nombre_oficial} cargado desde /marcas
+
+MARCAS_API_URL = "http://192.168.2.13:8000/marcas"
+
+
+def cargar_aliases_marcas() -> dict:
+    """Carga aliases de marcas desde la API interna. Devuelve {} si falla."""
+    try:
+        r = httpx.get(MARCAS_API_URL, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        # Espera {alias: nombre_oficial} o lista de {alias, nombre}
+        if isinstance(data, dict):
+            return {k.lower(): v.upper() for k, v in data.items()}
+        if isinstance(data, list):
+            return {item["alias"].lower(): item["nombre"].upper() for item in data
+                    if "alias" in item and "nombre" in item}
+    except Exception as e:
+        logger.warning(f"cargar_aliases_marcas falló: {e}")
+    return {}
 
 
 def _build_df_from_api(data: dict) -> pd.DataFrame:
@@ -366,10 +386,13 @@ if df.empty:
 else:
     logger.info(f"API cargada: {len(df)} productos, {df['marca'].nunique()} marcas, actualizado: {_api_data.get('actualizado', 'N/D')}")
 
+_aliases_marcas = cargar_aliases_marcas()
+logger.info(f"Aliases de marcas cargados: {len(_aliases_marcas)} entradas")
+
 
 async def refresh_stock_loop():
-    """Refresca la caché de la API cada 10 minutos en segundo plano."""
-    global _api_data, df
+    """Refresca la caché de la API y los aliases de marcas cada 10 minutos."""
+    global _api_data, df, _aliases_marcas
     while True:
         await asyncio.sleep(600)
         try:
@@ -382,6 +405,10 @@ async def refresh_stock_loop():
             logger.info(f"API refrescada: {len(df)} productos, actualizado: {data.get('actualizado', 'N/D')}")
         except Exception as e:
             logger.warning(f"Error refrescando API: {e} — manteniendo datos anteriores")
+        nuevos = cargar_aliases_marcas()
+        if nuevos:
+            _aliases_marcas = nuevos
+            logger.info(f"Aliases de marcas refrescados: {len(_aliases_marcas)} entradas")
 
 
 def _stock_total(fila) -> float:
@@ -673,6 +700,13 @@ def interpretar_linea(texto: str) -> tuple:
         if re.search(rf'\b{re.escape(alias)}\b', texto_lo):
             marca = MARCA_ALIAS[alias]
             break
+
+    # Normalizar contra aliases dinámicos del ERP (longest match primero)
+    if _aliases_marcas:
+        for alias_din in sorted(_aliases_marcas, key=len, reverse=True):
+            if re.search(rf'\b{re.escape(alias_din)}\b', texto_lo):
+                marca = _aliases_marcas[alias_din]
+                break
 
     # ── Color/variante ────────────────────────────────────────────────────────
     color = None

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from app.motor import consultar
 from app.motor import log_consultas
 from app.motor import refresh_stock_loop
+from app.agente import agente_cisge
 import asyncio
 import httpx
 import os
@@ -103,7 +104,7 @@ async def _procesar_mensaje(data: dict):
         if len(mensajes_procesados) > MAX_IDS:
             mensajes_procesados.clear()
 
-        _, respuesta = consultar(mensaje)
+        respuesta = await agente_cisge(mensaje, numero)
         await enviar_whatsapp(numero, respuesta)
     except Exception as e:
         logger.error(f"Error en _procesar_mensaje: {e}", exc_info=True)
