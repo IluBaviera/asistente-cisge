@@ -11,6 +11,7 @@ from app.motor import (
     formatear_resultado,
     formatear_multi_marca,
     formatear_lista,
+    df as motor_df,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,8 +90,8 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
             guardar_mensajes(numero_wa, mensaje, respuesta_motor)
             return respuesta_motor
 
-    # ── GPT parser ────────────────────────────────────────────────────────────
-    parsed = await _parsear(mensaje)
+    # ── GPT parser (recibe historial para entender referencias vagas) ────────
+    parsed = await _parsear(mensaje, historial)
     logger.info(f"agente [{numero_wa}]: parser → {parsed}")
 
     # ── Saludo / consulta no relacionada ─────────────────────────────────────
@@ -113,15 +114,23 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     return respuesta
 
 
-async def _parsear(mensaje: str) -> dict:
-    """Llama a GPT sin tools para extraer campos estructurados del mensaje."""
+def _grupos_disponibles() -> str:
+    """Lista de grupos únicos del DataFrame, ordenados, para inyectar en el parser."""
+    grupos = sorted(motor_df["grupo"].dropna().unique().tolist())
+    return ", ".join(f'"{g}"' for g in grupos)
+
+
+async def _parsear(mensaje: str, historial: list) -> dict:
+    """Llama a GPT sin tools para extraer campos estructurados.
+    Inyecta la lista real de grupos del ERP para que GPT elija el string exacto."""
     try:
+        prompt = _PARSER_PROMPT + f"\n\nGrupos válidos en el catálogo (elige uno de estos exactamente para el campo 'tipo'):\n{_grupos_disponibles()}"
+        messages = [{"role": "system", "content": prompt}]
+        messages.extend(historial[-4:])   # últimos 2 turnos de contexto
+        messages.append({"role": "user", "content": mensaje})
         completion = await _client.chat.completions.create(
             model=_MODEL,
-            messages=[
-                {"role": "system", "content": _PARSER_PROMPT},
-                {"role": "user",   "content": mensaje},
-            ],
+            messages=messages,
             temperature=0,
         )
         return json.loads(completion.choices[0].message.content.strip())
@@ -154,6 +163,14 @@ def _buscar_con_parsed(parsed: dict) -> str:
         subtipo=subtipo_ht, subfamilias=subfamilias,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
+
+    # Retry sin tipo si subfamilias presentes pero no hubo match de grupo/tipo_cod
+    if resultados.empty and subfamilias and tipo:
+        logger.info("E3: retry sin tipo (subfamilias + medida + marca)")
+        resultados = buscar_por_tipo_medida_marca(
+            medida=medida, marca=marca, presion=presion, subfamilias=subfamilias,
+        )
+        logger.info(f"E3 retry: DataFrame → {len(resultados)} filas")
 
     if resultados.empty:
         return ""
