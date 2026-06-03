@@ -36,6 +36,7 @@ def cargar_historial(numero_wa: str) -> list:
             filas = cur.fetchall()
 
         if not filas:
+            logger.info(f"db.cargar_historial [{numero_wa}]: 0 mensajes (sin historial)")
             return []
 
         # filas vienen DESC; el primero es el más reciente
@@ -43,11 +44,12 @@ def cargar_historial(numero_wa: str) -> list:
         if isinstance(mas_reciente, str):
             mas_reciente = datetime.fromisoformat(mas_reciente)
         if datetime.utcnow() - mas_reciente > timedelta(hours=2):
+            logger.info(f"db.cargar_historial [{numero_wa}]: sesión expirada (último msg hace >2h)")
             return []
 
-        # Reordenar ASC para el historial del agente
-        return [{"role": f["rol"], "content": f["contenido"]}
-                for f in reversed([{"rol": r, "contenido": c} for r, c, _ in filas])]
+        historial = [{"role": r, "content": c} for r, c, _ in reversed(filas)]
+        logger.info(f"db.cargar_historial [{numero_wa}]: {len(historial)} mensajes cargados")
+        return historial
 
     except Exception as e:
         logger.warning(f"db.cargar_historial falló para {numero_wa}: {e}")

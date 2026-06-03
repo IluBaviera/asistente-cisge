@@ -38,6 +38,10 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     messages.extend(historial)
     messages.append({"role": "user", "content": mensaje})
 
+    logger.info(f"agente [{numero_wa}]: historial={len(historial)} msgs | "
+                + " | ".join(f"{m['role']}:{m['content'][:40]!r}" for m in historial)
+                if historial else f"agente [{numero_wa}]: historial vacío")
+
     try:
         respuesta_final = await _llamar_gpt(messages)
     except Exception as e:
