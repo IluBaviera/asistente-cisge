@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 from openai import AsyncOpenAI
@@ -79,9 +80,14 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
 
     logger.info(f"agente [{numero_wa}]: motor → {respuesta_motor[:80]!r}")
     if respuesta_motor and not respuesta_motor.startswith(_MOTOR_VACIO):
-        logger.info(f"agente [{numero_wa}]: motor encontró resultado (sin GPT)")
-        guardar_mensajes(numero_wa, mensaje, respuesta_motor)
-        return respuesta_motor
+        # Si el motor encontró >15 productos, es demasiado amplio → refinar con GPT
+        m = re.search(r'Encontré \*(\d+) productos\*', respuesta_motor)
+        if m and int(m.group(1)) > 15:
+            logger.info(f"agente [{numero_wa}]: motor retornó {m.group(1)} productos → refinar con GPT")
+        else:
+            logger.info(f"agente [{numero_wa}]: motor encontró resultado (sin GPT)")
+            guardar_mensajes(numero_wa, mensaje, respuesta_motor)
+            return respuesta_motor
 
     # ── GPT parser ────────────────────────────────────────────────────────────
     parsed = await _parsear(mensaje)
