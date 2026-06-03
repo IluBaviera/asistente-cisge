@@ -4,6 +4,7 @@ import logging
 from openai import AsyncOpenAI
 from app.db import cargar_historial, guardar_mensajes
 from app.tools import TOOLS_SCHEMA, tool_buscar_producto, tool_ver_stock, tool_generar_cotizacion
+from app.motor import consultar
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +31,33 @@ _TOOL_MAP = {
 }
 
 
-async def agente_cisge(mensaje: str, numero_wa: str) -> str:
-    """Punto de entrada del agente. Una sola llamada a GPT con tools."""
-    historial = cargar_historial(numero_wa)
+_MOTOR_VACIO = ("No encontré ese producto", "¡Hola! 👋")
 
-    messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
-    messages.extend(historial)
-    messages.append({"role": "user", "content": mensaje})
+
+async def agente_cisge(mensaje: str, numero_wa: str) -> str:
+    """Punto de entrada. Motor primero; GPT solo si el motor no encontró nada."""
+    historial = cargar_historial(numero_wa)
 
     logger.info(f"agente [{numero_wa}]: historial={len(historial)} msgs | "
                 + " | ".join(f"{m['role']}:{m['content'][:40]!r}" for m in historial)
                 if historial else f"agente [{numero_wa}]: historial vacío")
+
+    # ── Paso 1: motor regex (sin coste, sin latencia de red) ─────────────────
+    try:
+        _, respuesta_motor = consultar(mensaje)
+    except Exception as e:
+        logger.warning(f"motor.consultar error: {e}")
+        respuesta_motor = ""
+
+    if respuesta_motor and not respuesta_motor.startswith(_MOTOR_VACIO):
+        logger.info(f"agente [{numero_wa}]: respuesta del motor (sin GPT)")
+        guardar_mensajes(numero_wa, mensaje, respuesta_motor)
+        return respuesta_motor
+
+    # ── Paso 2: GPT con tools (motor no encontró nada útil) ──────────────────
+    messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
+    messages.extend(historial)
+    messages.append({"role": "user", "content": mensaje})
 
     try:
         respuesta_final = await _llamar_gpt(messages)
