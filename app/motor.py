@@ -617,14 +617,11 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     elif superficie == "lisa":
         r = r[~r["descripcion"].str.contains("corrugada", na=False, case=False)]
     if medidas and not medidas_aplicadas:
-        subfams_actuales = set(r["subfamilia"].unique()) if not r.empty else set()
-        es_adaptador = bool(subfams_actuales & {"ADAPTADORES I", "ADAPTADORES II"})
-        if es_adaptador:
-            if len(medidas) == 1:
-                r = r[r["medidas_cod"].apply(lambda m: medidas[0] in m)]
-            else:
-                r = r[r["medidas_cod"].apply(lambda m: m == medidas)]
-            medidas_aplicadas = True
+        if len(medidas) == 1:
+            r = r[r["medidas_cod"].apply(lambda m: medidas[0] in m)]
+        else:
+            r = r[r["medidas_cod"].apply(lambda m: m == medidas)]
+        medidas_aplicadas = True
 
     if medida and not medidas_aplicadas:
         medida_norm = medida.upper().strip().rstrip('"').strip()

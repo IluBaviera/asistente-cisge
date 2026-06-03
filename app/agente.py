@@ -29,21 +29,22 @@ Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
   "subfamilias": [],
   "tipo": "",
   "medida": "",
+  "medidas": [],
   "marca": "",
   "color": "",
   "presion": "",
   "es_saludo": false
 }
 subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
-tipo: tipo de producto: R1, R2, 4SH, NPT, JIC, BSP, MACHO, HEMBRA, etc.
-medida: fracción o decimal sin texto: 1/2, 3/4, 1, 1 1/4
+tipo: tipo de producto exacto del catálogo. Si el usuario especificó subtipo (R1/R2/R12/etc.), inclúyelo (ej: "ESPIGA MACHO NPT R2"). Si no especificó, usa el prefijo base (ej: "ESPIGA MACHO NPT").
+medida: primera medida mencionada como fracción: 1/2, 3/4, 1, 1 1/4
+medidas: si el usuario menciona dos medidas separadas por "x" (ej: "3/8 x 3/8", "1/4 x 1/2"), extrae la lista ordenada: ["3/8", "3/8"]. Si hay una sola medida, dejar vacío [].
 marca: marca oficial: QF, JDEFLEX, VITILLO, MACTUBI, AF, LT, DME, etc.
 color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Si es_saludo es true, deja todos los demás campos vacíos.
-Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2")."""
+Si es_saludo es true, deja todos los demás campos vacíos."""
 
 # ── Prompt 2: asistente conversacional (responde al usuario) ─────────────────
 _AGENT_PROMPT = """\
@@ -167,6 +168,7 @@ def _buscar_con_parsed(parsed: dict) -> str:
     """E3: llama a buscar_por_tipo_medida_marca() con campos del parser."""
     tipo       = parsed.get("tipo") or None
     medida     = parsed.get("medida") or None
+    medidas    = parsed.get("medidas") or []
     marca      = parsed.get("marca") or None
     presion    = parsed.get("presion") or None
     color      = parsed.get("color") or None
@@ -182,12 +184,12 @@ def _buscar_con_parsed(parsed: dict) -> str:
     subtipo_ht = color if tipo == "HT" else None
     logger.info(
         f"E3: buscar_por_tipo_medida_marca("
-        f"tipo={tipo!r}, medida={medida!r}, marca={marca!r}, "
+        f"tipo={tipo!r}, medida={medida!r}, medidas={medidas}, marca={marca!r}, "
         f"presion={presion!r}, subfamilias={subfamilias})"
     )
     resultados = buscar_por_tipo_medida_marca(
         tipo=tipo, medida=medida, marca=marca, presion=presion,
-        subtipo=subtipo_ht, subfamilias=subfamilias,
+        subtipo=subtipo_ht, subfamilias=subfamilias, medidas=medidas or None,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
 
