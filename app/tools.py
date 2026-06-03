@@ -9,6 +9,7 @@ STOCK_API = "https://api.comercialcisgesac.com.pe/stock"
 
 def tool_buscar_producto(query: str) -> str:
     """Busca un producto por código, tipo+medida o descripción."""
+    logger.info(f"tool_buscar_producto → consultar({query!r})")
     _, respuesta = consultar(query)
     return respuesta
 
