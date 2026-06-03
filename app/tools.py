@@ -68,7 +68,7 @@ TOOLS_SCHEMA = [
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Texto de búsqueda: código (QF-R1-1/2\"), tipo+medida (R1 1/2 QF), descripción, etc.",
+                        "description": "Texto de búsqueda tal cual lo escribió el usuario: código (QF-R1-1/2\"), tipo+medida (R1 1/2 QF), descripción, etc. No reformatees ni traduzcas — pasa el texto original.",
                     }
                 },
                 "required": ["query"],
