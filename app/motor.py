@@ -618,10 +618,13 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[~r["descripcion"].str.contains("corrugada", na=False, case=False)]
     if medidas and not medidas_aplicadas:
         if len(medidas) == 1:
-            r = r[r["medidas_cod"].apply(lambda m: medidas[0] in m)]
+            r_med = r[r["medidas_cod"].apply(lambda m: medidas[0] in m)]
         else:
-            r = r[r["medidas_cod"].apply(lambda m: m == medidas)]
-        medidas_aplicadas = True
+            r_med = r[r["medidas_cod"].apply(lambda m: m == medidas)]
+        if not r_med.empty:
+            r = r_med
+            medidas_aplicadas = True
+        # si el filtro por lista devuelve 0, cae al filtro simple de medida
 
     if medida and not medidas_aplicadas:
         medida_norm = medida.upper().strip().rstrip('"').strip()
@@ -755,7 +758,7 @@ def interpretar_linea(texto: str) -> tuple:
     medidas = []
     texto_lo_norm = re.sub(r'(\d)\s*x\s*(\d)', r'\1 x \2', texto_lo)
     partes = re.split(r'\s+x\s+', texto_lo_norm)
-    patron_medida = r'(\d+\s+\d+/\d+|\d+/\d+|\d+\"?)'
+    patron_medida = r'(?<![A-Za-z])(\d+\s+\d+/\d+|\d+/\d+|\d+\"?)'
     medidas_candidatas = []
     for parte in partes:
         mm = re.search(patron_medida, parte.strip())
