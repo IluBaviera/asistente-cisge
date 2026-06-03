@@ -145,9 +145,12 @@ async def _parsear(mensaje: str, historial: list) -> dict:
             _PARSER_PROMPT
             + f"\n\nSubfamilias válidas (usa SOLO estas en el campo 'subfamilias'):\n{_subfamilias_disponibles()}"
             + f"\n\nGrupos válidos (elige uno de estos exactamente para el campo 'tipo'):\n{_grupos_disponibles()}"
+            + "\n\nIMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."
         )
+        # Solo mensajes del usuario para evitar que respuestas incorrectas anteriores contaminen el parser
+        contexto_usuario = [m for m in historial[-6:] if m["role"] == "user"]
         messages = [{"role": "system", "content": prompt}]
-        messages.extend(historial[-4:])   # últimos 2 turnos de contexto
+        messages.extend(contexto_usuario)
         messages.append({"role": "user", "content": mensaje})
         completion = await _client.chat.completions.create(
             model=_MODEL,
