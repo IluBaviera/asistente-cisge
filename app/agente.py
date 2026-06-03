@@ -116,16 +116,36 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
 
 
 def _grupos_disponibles() -> str:
-    """Lista de grupos únicos del DataFrame, ordenados, para inyectar en el parser."""
     grupos = sorted(motor_df["grupo"].dropna().unique().tolist())
     return ", ".join(f'"{g}"' for g in grupos)
 
 
+def _subfamilias_disponibles() -> str:
+    subs = sorted(motor_df["subfamilia"].dropna().unique().tolist())
+    return ", ".join(f'"{s}"' for s in subs)
+
+
+_SUBFAMILIAS_VALIDAS: set = set()  # se llena la primera vez que se usa
+
+
+def _validar_subfamilias(subfamilias: list) -> list | None:
+    """Filtra subfamilias inventadas por GPT que no existen en el DataFrame."""
+    global _SUBFAMILIAS_VALIDAS
+    if not _SUBFAMILIAS_VALIDAS:
+        _SUBFAMILIAS_VALIDAS = set(motor_df["subfamilia"].dropna().unique())
+    validas = [s for s in (subfamilias or []) if s in _SUBFAMILIAS_VALIDAS]
+    return validas if validas else None
+
+
 async def _parsear(mensaje: str, historial: list) -> dict:
     """Llama a GPT sin tools para extraer campos estructurados.
-    Inyecta la lista real de grupos del ERP para que GPT elija el string exacto."""
+    Inyecta listas reales de subfamilias y grupos del ERP."""
     try:
-        prompt = _PARSER_PROMPT + f"\n\nGrupos válidos en el catálogo (elige uno de estos exactamente para el campo 'tipo'):\n{_grupos_disponibles()}"
+        prompt = (
+            _PARSER_PROMPT
+            + f"\n\nSubfamilias válidas (usa SOLO estas en el campo 'subfamilias'):\n{_subfamilias_disponibles()}"
+            + f"\n\nGrupos válidos (elige uno de estos exactamente para el campo 'tipo'):\n{_grupos_disponibles()}"
+        )
         messages = [{"role": "system", "content": prompt}]
         messages.extend(historial[-4:])   # últimos 2 turnos de contexto
         messages.append({"role": "user", "content": mensaje})
@@ -147,7 +167,7 @@ def _buscar_con_parsed(parsed: dict) -> str:
     marca      = parsed.get("marca") or None
     presion    = parsed.get("presion") or None
     color      = parsed.get("color") or None
-    subfamilias = parsed.get("subfamilias") or None
+    subfamilias = _validar_subfamilias(parsed.get("subfamilias"))
 
     if not any([tipo, medida, marca, subfamilias]):
         logger.info("E3: sin campos suficientes para buscar")
