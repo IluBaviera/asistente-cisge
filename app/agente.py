@@ -42,7 +42,8 @@ color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Si es_saludo es true, deja todos los demás campos vacíos."""
+Si es_saludo es true, deja todos los demás campos vacíos.
+Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2")."""
 
 # ── Prompt 2: asistente conversacional (responde al usuario) ─────────────────
 _AGENT_PROMPT = """\

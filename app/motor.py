@@ -576,6 +576,9 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         mask_grupo = r["grupo"].str.upper() == tipo_up
         if mask_grupo.any():
             r = r[mask_grupo]
+        # Intento 2: startswith — "ESPIGA MACHO NPT" encuentra "ESPIGA MACHO NPT R2"
+        elif r["grupo"].str.upper().str.startswith(tipo_up, na=False).any():
+            r = r[r["grupo"].str.upper().str.startswith(tipo_up, na=False)]
         else:
             # Fallback: lógica anterior por tipo_cod
             tipos_posibles = TIPO_SAE_MAP.get(tipo_up, [tipo_up])
