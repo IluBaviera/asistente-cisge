@@ -104,10 +104,21 @@ async def _procesar_mensaje(data: dict):
         if len(mensajes_procesados) > MAX_IDS:
             mensajes_procesados.clear()
 
+        await marcar_leido(msg_id)
         respuesta = await agente_cisge(mensaje, numero)
         await enviar_whatsapp(numero, respuesta)
     except Exception as e:
         logger.error(f"Error en _procesar_mensaje: {e}", exc_info=True)
+
+async def marcar_leido(msg_id: str):
+    url     = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    body    = {"messaging_product": "whatsapp", "status": "read", "message_id": msg_id}
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(url, json=body, headers=headers, timeout=5)
+    except Exception as e:
+        logger.warning(f"marcar_leido falló: {e}")
 
 async def enviar_whatsapp(numero: str, texto: str):
     url     = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
