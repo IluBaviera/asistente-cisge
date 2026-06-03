@@ -4,18 +4,15 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-_CONN_STR = (
-    "DRIVER={ODBC Driver 17 for SQL Server};"
-    "SERVER=192.168.2.13;"
-    "DATABASE=BdAsistente;"
-    f"UID=cisge_asistente;"
-    f"PWD={os.getenv('DB_PASSWORD', '')};"
-)
-
-
 def _get_conn():
-    import pyodbc
-    return pyodbc.connect(_CONN_STR, timeout=5)
+    import pymssql
+    return pymssql.connect(
+        server='192.168.2.13',
+        user='cisge_asistente',
+        password=os.getenv('DB_PASSWORD'),
+        database='BdAsistente',
+        timeout=5,
+    )
 
 
 def cargar_historial(numero_wa: str) -> list:
