@@ -77,6 +77,7 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
         logger.warning(f"motor.consultar error: {e}")
         respuesta_motor = ""
 
+    logger.info(f"agente [{numero_wa}]: motor → {respuesta_motor[:80]!r}")
     if respuesta_motor and not respuesta_motor.startswith(_MOTOR_VACIO):
         logger.info(f"agente [{numero_wa}]: motor encontró resultado (sin GPT)")
         guardar_mensajes(numero_wa, mensaje, respuesta_motor)
@@ -133,13 +134,20 @@ def _buscar_con_parsed(parsed: dict) -> str:
     subfamilias = parsed.get("subfamilias") or None
 
     if not any([tipo, medida, marca, subfamilias]):
+        logger.info("E3: sin campos suficientes para buscar")
         return ""
 
     subtipo_ht = color if tipo == "HT" else None
+    logger.info(
+        f"E3: buscar_por_tipo_medida_marca("
+        f"tipo={tipo!r}, medida={medida!r}, marca={marca!r}, "
+        f"presion={presion!r}, subfamilias={subfamilias})"
+    )
     resultados = buscar_por_tipo_medida_marca(
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subtipo=subtipo_ht, subfamilias=subfamilias,
     )
+    logger.info(f"E3: DataFrame → {len(resultados)} filas")
 
     if resultados.empty:
         return ""
