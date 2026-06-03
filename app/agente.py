@@ -19,7 +19,9 @@ REGLAS:
 - Si el usuario saluda o hace una consulta no relacionada con productos, responde cordialmente y pregunta en qué puedes ayudarle. No pidas tipo/medida/marca ante un saludo.
 - Nunca inventes precios ni stock, solo usa las tools.
 - Respuestas en español, formato WhatsApp (sin markdown).
-- Cuando tengas suficiente información para buscar un producto, llama la tool directamente sin preguntar de nuevo."""
+- Cuando tengas suficiente información para buscar un producto, llama la tool directamente sin preguntar de nuevo.
+- Cuando el usuario use pronombres o referencias vagas como 'el r1', 'ese producto', 'en colonial', siempre revisa el historial de la conversación para identificar a qué producto se refiere antes de pedir aclaraciones.
+- Cuando el usuario envíe múltiples productos en un solo mensaje separados por comas o saltos de línea con cantidades, interpreta cada línea como un ítem de cotización y llama a tool_generar_cotizacion con todos los ítems juntos sin pedir confirmación previa."""
 
 _TOOL_MAP = {
     "tool_buscar_producto":    tool_buscar_producto,
