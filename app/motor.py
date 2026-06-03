@@ -998,7 +998,9 @@ def consultar(texto: str) -> tuple:
             if not medida:
                 meds = resultados["medida_cod"].dropna().unique()[:8]
                 detalle.append(f"📐 Medida: {', '.join(meds)}")
-            if not color:
+            # Color solo para mangueras hidráulicas/industriales
+            es_manguera = resultados["subfamilia"].str.contains("MANGUERA", na=False).any()
+            if not color and es_manguera:
                 detalle.append("🎨 Color: Amarillo (A), Negro (N), Rojo (R)")
             return None, (
                 f"Encontré *{len(resultados)} productos* para *{tipo or 'ese tipo'}*.\n\n"
