@@ -167,7 +167,10 @@ def _buscar_con_parsed(parsed: dict) -> str:
     marca      = parsed.get("marca") or None
     presion    = parsed.get("presion") or None
     color      = parsed.get("color") or None
-    subfamilias = _validar_subfamilias(parsed.get("subfamilias"))
+    subfamilias_raw = parsed.get("subfamilias") or []
+    subfamilias = _validar_subfamilias(subfamilias_raw)
+    if subfamilias_raw != subfamilias:
+        logger.info(f"E3: subfamilias filtradas: {subfamilias_raw} → {subfamilias}")
 
     if not any([tipo, medida, marca, subfamilias]):
         logger.info("E3: sin campos suficientes para buscar")
@@ -184,14 +187,6 @@ def _buscar_con_parsed(parsed: dict) -> str:
         subtipo=subtipo_ht, subfamilias=subfamilias,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
-
-    # Retry sin tipo si subfamilias presentes pero no hubo match de grupo/tipo_cod
-    if resultados.empty and subfamilias and tipo:
-        logger.info("E3: retry sin tipo (subfamilias + medida + marca)")
-        resultados = buscar_por_tipo_medida_marca(
-            medida=medida, marca=marca, presion=presion, subfamilias=subfamilias,
-        )
-        logger.info(f"E3 retry: DataFrame → {len(resultados)} filas")
 
     if resultados.empty:
         return ""
