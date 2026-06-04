@@ -373,20 +373,17 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     if not texto:
         return "No pude leer texto en la imagen. ¿Puedes enviar una foto más clara o escribir la lista directamente?"
 
-    # Paso 5 — procesar cada línea con el motor (sin guardar historial por línea)
-    from app.motor import consultar as motor_consultar
+    # Paso 5 — cotizar todas las líneas en una sola llamada (formato compacto)
+    from app.motor import cotizar_multiple
     lineas = [l.strip() for l in texto.splitlines() if l.strip()]
     logger.info(f"OCR [{numero_wa}]: {len(lineas)} líneas extraídas")
 
-    resultados = []
-    for linea in lineas:
-        try:
-            _, r = motor_consultar(linea)
-        except Exception:
-            r = f"❌ Error procesando: {linea}"
-        resultados.append(f"*{linea}*\n{r}")
+    try:
+        respuesta_final = cotizar_multiple(lineas)
+    except Exception as e:
+        logger.warning(f"cotizar_multiple error: {e}")
+        respuesta_final = "Pude leer la imagen pero hubo un error al cotizar. Escribe la lista directamente."
 
-    # Paso 6 — consolidar y guardar como un solo intercambio
-    respuesta_final = f"📋 Procesé {len(lineas)} líneas de la imagen:\n\n" + "\n\n─────\n\n".join(resultados)
-    guardar_mensajes(numero_wa, f"[imagen {image_id}]", respuesta_final)
+    # Paso 6 — guardar como un solo intercambio en historial
+    guardar_mensajes(numero_wa, f"[imagen: {len(lineas)} líneas]", respuesta_final)
     return respuesta_final

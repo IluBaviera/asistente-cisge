@@ -130,15 +130,32 @@ async def marcar_leido(msg_id: str):
     except Exception as e:
         logger.warning(f"marcar_leido falló: {e}")
 
+def _dividir_mensaje(texto: str, limite: int = 4000) -> list[str]:
+    """Divide texto en chunks <= limite, cortando en saltos de línea."""
+    if len(texto) <= limite:
+        return [texto]
+    partes, bloque = [], ""
+    for linea in texto.splitlines(keepends=True):
+        if len(bloque) + len(linea) > limite:
+            if bloque:
+                partes.append(bloque.rstrip())
+            bloque = linea
+        else:
+            bloque += linea
+    if bloque.strip():
+        partes.append(bloque.rstrip())
+    return partes
+
 async def enviar_whatsapp(numero: str, texto: str):
     url     = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
     headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
-    body    = {
-        "messaging_product": "whatsapp",
-        "to": numero,
-        "type": "text",
-        "text": {"body": texto}
-    }
     async with httpx.AsyncClient() as client:
-        r = await client.post(url, json=body, headers=headers)
-        logger.info(f"WhatsApp API response: {r.status_code} {r.text}")
+        for parte in _dividir_mensaje(texto):
+            body = {
+                "messaging_product": "whatsapp",
+                "to": numero,
+                "type": "text",
+                "text": {"body": parte}
+            }
+            r = await client.post(url, json=body, headers=headers)
+            logger.info(f"WhatsApp API response: {r.status_code} {r.text}")
