@@ -57,7 +57,8 @@ REGLAS:
 - Respuestas en español, formato WhatsApp (sin markdown).
 - Cuando tengas suficiente información para buscar un producto, llama la tool directamente sin preguntar de nuevo.
 - Cuando el usuario use pronombres o referencias vagas como 'el r1', 'ese producto', 'en colonial', siempre revisa el historial de la conversación para identificar a qué producto se refiere antes de pedir aclaraciones.
-- Cuando el usuario envíe múltiples productos en un solo mensaje separados por comas o saltos de línea con cantidades, interpreta cada línea como un ítem de cotización y llama a tool_generar_cotizacion con todos los ítems juntos sin pedir confirmación previa."""
+- Cuando el usuario envíe múltiples productos en un solo mensaje separados por comas o saltos de línea con cantidades, interpreta cada línea como un ítem de cotización y llama a tool_generar_cotizacion con todos los ítems juntos sin pedir confirmación previa.
+- Cuando el usuario pregunte 'en qué marcas tienes X', 'qué marcas tienen X' o similar: busca el producto con tool_buscar_producto, extrae las marcas únicas de los resultados y lista SOLO las marcas disponibles con sus precios aproximados. No listes todos los productos."""
 
 _TOOL_MAP = {
     "tool_buscar_producto":    tool_buscar_producto,
@@ -73,6 +74,17 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     logger.info(f"agente [{numero_wa}]: historial={len(historial)} msgs | "
                 + " | ".join(f"{m['role']}:{m['content'][:40]!r}" for m in historial)
                 if historial else f"agente [{numero_wa}]: historial vacío")
+
+    # ── Pre-check: preguntas de intención (marcas, disponibilidad) → GPT directo ─
+    _INTENT_MARCAS = re.compile(
+        r'\b(qu[eé]\s+marcas?|en\s+qu[eé]\s+marcas?|qu[eé]\s+marca\s+tiene|'
+        r'qu[eé]\s+marca\s+tienen|en\s+cu[aá]les?\s+marcas?)\b', re.IGNORECASE
+    )
+    if _INTENT_MARCAS.search(mensaje):
+        logger.info(f"agente [{numero_wa}]: pregunta de marcas → GPT directo")
+        respuesta = await _gpt_conversacional(mensaje, historial)
+        guardar_mensajes(numero_wa, mensaje, respuesta)
+        return respuesta
 
     # ── E1/E2: motor regex ────────────────────────────────────────────────────
     try:
