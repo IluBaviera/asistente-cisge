@@ -359,7 +359,11 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
             max_tokens=1000,
             temperature=0,
         )
-        ocr = json.loads(completion.choices[0].message.content.strip())
+        raw = completion.choices[0].message.content.strip()
+        # Limpiar bloques markdown que GPT suele agregar alrededor del JSON
+        raw = re.sub(r'^```(?:json)?\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw)
+        ocr = json.loads(raw)
         texto = ocr.get("texto_extraido", "").strip()
     except Exception as e:
         logger.warning(f"OCR error: {e}")
