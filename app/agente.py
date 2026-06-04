@@ -6,11 +6,14 @@ from openai import AsyncOpenAI
 from app.db import cargar_historial, guardar_mensajes
 from app.tools import TOOLS_SCHEMA, tool_buscar_producto, tool_ver_stock, tool_generar_cotizacion
 from app.motor import (
-    consultar,
+    buscar_por_codigo,
+    buscar_por_codigo_prefijo,
     buscar_por_tipo_medida_marca,
     formatear_resultado,
     formatear_multi_marca,
     formatear_lista,
+    extraer_cantidad,
+    extraer_descuento,
     df as motor_df,
 )
 
@@ -19,9 +22,13 @@ logger = logging.getLogger(__name__)
 _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 _MODEL  = "gpt-4.1-mini"
 
-_MOTOR_VACIO = ("No encontré ese producto", "¡Hola! 👋")
+# Preguntas de intención sobre marcas → GPT directo (antes de cualquier búsqueda)
+_INTENT_MARCAS = re.compile(
+    r'\b(qu[eé]\s+marcas?|en\s+qu[eé]\s+marcas?|qu[eé]\s+marca\s+tiene|'
+    r'qu[eé]\s+marca\s+tienen|en\s+cu[aá]les?\s+marcas?)\b', re.IGNORECASE
+)
 
-# ── Prompt 1: parser interno (sin tools, devuelve JSON) ──────────────────────
+# ── Prompt 1: parser interno ──────────────────────────────────────────────────
 _PARSER_PROMPT = """\
 Eres un parser de consultas comerciales para CISGE Perú.
 Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
@@ -44,9 +51,11 @@ color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Si es_saludo es true, deja todos los demás campos vacíos."""
+Si es_saludo es true, deja todos los demás campos vacíos.
+Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
+IMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."""
 
-# ── Prompt 2: asistente conversacional (responde al usuario) ─────────────────
+# ── Prompt 2: asistente conversacional ───────────────────────────────────────
 _AGENT_PROMPT = """\
 Eres el asistente comercial de CISGE, distribuidora peruana de mangueras hidráulicas y accesorios. Atiendes vendedores por WhatsApp.
 PERSONALIDAD: Profesional, directo, respuestas cortas adaptadas a WhatsApp.
@@ -68,61 +77,85 @@ _TOOL_MAP = {
 
 
 async def agente_cisge(mensaje: str, numero_wa: str) -> str:
-    """Flujo: E1/E2 motor → parser GPT → E3 directo → E4 GPT conversacional."""
+    """E1 código exacto → E2 prefijo → GPT parser → E3 campos → E4 GPT."""
     historial = cargar_historial(numero_wa)
 
     logger.info(f"agente [{numero_wa}]: historial={len(historial)} msgs | "
                 + " | ".join(f"{m['role']}:{m['content'][:40]!r}" for m in historial)
                 if historial else f"agente [{numero_wa}]: historial vacío")
 
-    # ── Pre-check: preguntas de intención (marcas, disponibilidad) → GPT directo ─
-    _INTENT_MARCAS = re.compile(
-        r'\b(qu[eé]\s+marcas?|en\s+qu[eé]\s+marcas?|qu[eé]\s+marca\s+tiene|'
-        r'qu[eé]\s+marca\s+tienen|en\s+cu[aá]les?\s+marcas?)\b', re.IGNORECASE
-    )
+    # ── Pre-check: intención de marcas → GPT directo ──────────────────────────
     if _INTENT_MARCAS.search(mensaje):
         logger.info(f"agente [{numero_wa}]: pregunta de marcas → GPT directo")
         respuesta = await _gpt_conversacional(mensaje, historial)
         guardar_mensajes(numero_wa, mensaje, respuesta)
         return respuesta
 
-    # ── E1/E2: motor regex ────────────────────────────────────────────────────
-    try:
-        _, respuesta_motor = consultar(mensaje)
-    except Exception as e:
-        logger.warning(f"motor.consultar error: {e}")
-        respuesta_motor = ""
+    # Limpiar cantidad y descuento para búsquedas de código
+    cantidad  = extraer_cantidad(mensaje)
+    descuento = extraer_descuento(mensaje)
+    texto_cod = re.sub(r'\bx\s*\d+(?!\s*/\d)', '', mensaje).strip()
+    texto_cod = re.sub(r'\b\d+\s*%', '', texto_cod).strip()
 
-    logger.info(f"agente [{numero_wa}]: motor → {respuesta_motor[:80]!r}")
-    if respuesta_motor and not respuesta_motor.startswith(_MOTOR_VACIO):
-        # Si el motor encontró >15 productos, es demasiado amplio → refinar con GPT
-        m = re.search(r'Encontré \*(\d+) productos\*', respuesta_motor)
-        if m and int(m.group(1)) > 15:
-            logger.info(f"agente [{numero_wa}]: motor retornó {m.group(1)} productos → refinar con GPT")
-        else:
-            logger.info(f"agente [{numero_wa}]: motor encontró resultado (sin GPT)")
-            guardar_mensajes(numero_wa, mensaje, respuesta_motor)
-            return respuesta_motor
+    # ── E1: código exacto ─────────────────────────────────────────────────────
+    exactos = buscar_por_codigo(texto_cod)
+    if not exactos.empty:
+        logger.info(f"agente [{numero_wa}]: E1 código exacto ({exactos.iloc[0]['codigo']})")
+        respuesta = (formatear_resultado(exactos.iloc[0], cantidad, descuento)
+                     if len(exactos) == 1 else formatear_multi_marca(exactos))
+        guardar_mensajes(numero_wa, mensaje, respuesta)
+        return respuesta
 
-    # ── GPT parser (recibe historial para entender referencias vagas) ────────
+    # ── E2: prefijo de código ─────────────────────────────────────────────────
+    if len(texto_cod) >= 3:
+        prefijo = buscar_por_codigo_prefijo(texto_cod)
+        # Fallback VITILLO: letra de color extra (VT-TH1SNN08 → VT-TH1SN08)
+        if prefijo.empty:
+            m_vt = re.match(r'^(.+)([A-Z])(\d{2}(?:SL)?)$', texto_cod.upper().strip())
+            if m_vt:
+                alt = m_vt.group(1) + m_vt.group(3)
+                alt_r = buscar_por_codigo_prefijo(alt)
+                if not alt_r.empty:
+                    prefijo = alt_r
+                    logger.info(f"agente [{numero_wa}]: E2 VITILLO corregido → {alt}")
+
+        if len(prefijo) == 1:
+            fila = prefijo.iloc[0]
+            logger.info(f"agente [{numero_wa}]: E2 prefijo único ({fila['codigo']})")
+            respuesta = formatear_resultado(fila, cantidad, descuento)
+            guardar_mensajes(numero_wa, mensaje, respuesta)
+            return respuesta
+        elif 1 < len(prefijo) <= 15:
+            logger.info(f"agente [{numero_wa}]: E2 prefijo {len(prefijo)} resultados")
+            respuesta = (formatear_multi_marca(prefijo) if prefijo["codigo"].nunique() == 1
+                         else formatear_lista(prefijo, f"Encontré {len(prefijo)} productos con ese prefijo:"))
+            guardar_mensajes(numero_wa, mensaje, respuesta)
+            return respuesta
+        elif len(prefijo) > 15:
+            logger.info(f"agente [{numero_wa}]: E2 prefijo {len(prefijo)} resultados → lista truncada")
+            lista = formatear_lista(prefijo.head(15), f"Mostrando 15 de {len(prefijo)} productos con ese prefijo:")
+            respuesta = lista + "\n_Hay más resultados — escribe más caracteres para filtrar._"
+            guardar_mensajes(numero_wa, mensaje, respuesta)
+            return respuesta
+
+    # ── GPT parser: lenguaje natural → campos estructurados ───────────────────
     parsed = await _parsear(mensaje, historial)
     logger.info(f"agente [{numero_wa}]: parser → {parsed}")
 
-    # ── Saludo / consulta no relacionada ─────────────────────────────────────
     if parsed.get("es_saludo"):
         respuesta = await _gpt_conversacional(mensaje, historial)
         guardar_mensajes(numero_wa, mensaje, respuesta)
         return respuesta
 
-    # ── E3: búsqueda directa con campos del parser ────────────────────────────
+    # ── E3: buscar_por_tipo_medida_marca con campos del parser ────────────────
     respuesta_e3 = _buscar_con_parsed(parsed)
     if respuesta_e3:
         logger.info(f"agente [{numero_wa}]: E3 encontró resultado")
         guardar_mensajes(numero_wa, mensaje, respuesta_e3)
         return respuesta_e3
 
-    # ── E4: GPT conversacional como fallback ──────────────────────────────────
-    logger.info(f"agente [{numero_wa}]: E4 fallback a GPT conversacional")
+    # ── E4: GPT conversacional con tools ──────────────────────────────────────
+    logger.info(f"agente [{numero_wa}]: E4 GPT conversacional")
     respuesta = await _gpt_conversacional(mensaje, historial)
     guardar_mensajes(numero_wa, mensaje, respuesta)
     return respuesta
@@ -138,11 +171,10 @@ def _subfamilias_disponibles() -> str:
     return ", ".join(f'"{s}"' for s in subs)
 
 
-_SUBFAMILIAS_VALIDAS: set = set()  # se llena la primera vez que se usa
+_SUBFAMILIAS_VALIDAS: set = set()
 
 
 def _validar_subfamilias(subfamilias: list) -> list | None:
-    """Filtra subfamilias inventadas por GPT que no existen en el DataFrame."""
     global _SUBFAMILIAS_VALIDAS
     if not _SUBFAMILIAS_VALIDAS:
         _SUBFAMILIAS_VALIDAS = set(motor_df["subfamilia"].dropna().unique())
@@ -151,24 +183,19 @@ def _validar_subfamilias(subfamilias: list) -> list | None:
 
 
 async def _parsear(mensaje: str, historial: list) -> dict:
-    """Llama a GPT sin tools para extraer campos estructurados.
-    Inyecta listas reales de subfamilias y grupos del ERP."""
+    """Parser interno: lenguaje natural → JSON estructurado. Sin tools."""
     try:
         prompt = (
             _PARSER_PROMPT
-            + f"\n\nSubfamilias válidas (usa SOLO estas en el campo 'subfamilias'):\n{_subfamilias_disponibles()}"
-            + f"\n\nGrupos válidos (elige uno de estos exactamente para el campo 'tipo'):\n{_grupos_disponibles()}"
-            + "\n\nIMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."
+            + f"\n\nSubfamilias válidas (usa SOLO estas):\n{_subfamilias_disponibles()}"
+            + f"\n\nGrupos válidos (elige uno exactamente para 'tipo'):\n{_grupos_disponibles()}"
         )
-        # Solo mensajes del usuario para evitar que respuestas incorrectas anteriores contaminen el parser
         contexto_usuario = [m for m in historial[-6:] if m["role"] == "user"]
         messages = [{"role": "system", "content": prompt}]
         messages.extend(contexto_usuario)
         messages.append({"role": "user", "content": mensaje})
         completion = await _client.chat.completions.create(
-            model=_MODEL,
-            messages=messages,
-            temperature=0,
+            model=_MODEL, messages=messages, temperature=0,
         )
         return json.loads(completion.choices[0].message.content.strip())
     except Exception as e:
@@ -178,15 +205,15 @@ async def _parsear(mensaje: str, historial: list) -> dict:
 
 def _buscar_con_parsed(parsed: dict) -> str:
     """E3: llama a buscar_por_tipo_medida_marca() con campos del parser."""
-    tipo       = parsed.get("tipo") or None
-    medida     = parsed.get("medida") or None
-    medidas    = parsed.get("medidas") or []
-    marca      = parsed.get("marca") or None
-    presion    = parsed.get("presion") or None
-    color      = parsed.get("color") or None
+    tipo        = parsed.get("tipo") or None
+    medida      = parsed.get("medida") or None
+    medidas     = parsed.get("medidas") or []
+    marca       = parsed.get("marca") or None
+    presion     = parsed.get("presion") or None
+    color       = parsed.get("color") or None
     subfamilias_raw = parsed.get("subfamilias") or []
     subfamilias = _validar_subfamilias(subfamilias_raw)
-    if subfamilias_raw != subfamilias:
+    if subfamilias_raw and subfamilias_raw != (subfamilias or []):
         logger.info(f"E3: subfamilias filtradas: {subfamilias_raw} → {subfamilias}")
 
     if not any([tipo, medida, marca, subfamilias]):
@@ -217,7 +244,6 @@ def _buscar_con_parsed(parsed: dict) -> str:
     if len(resultados) <= 12:
         return formatear_lista(resultados, f"Encontré {len(resultados)} opciones:")
 
-    # >12: pedir refinamiento
     marcas = resultados["marca"].unique()
     meds   = resultados["medida_cod"].dropna().unique()[:8]
     detalle = []
@@ -232,7 +258,7 @@ def _buscar_con_parsed(parsed: dict) -> str:
 
 
 async def _gpt_conversacional(mensaje: str, historial: list) -> str:
-    """GPT con tools para saludos y fallback E4."""
+    """E4: GPT con tools para saludos y consultas que E3 no pudo resolver."""
     messages = [{"role": "system", "content": _AGENT_PROMPT}]
     messages.extend(historial)
     messages.append({"role": "user", "content": mensaje})
@@ -243,10 +269,7 @@ async def _llamar_gpt(messages: list) -> str:
     """Llama a GPT con tools. Resuelve hasta 5 rondas de tool calls."""
     for _ in range(5):
         completion = await _client.chat.completions.create(
-            model=_MODEL,
-            messages=messages,
-            tools=TOOLS_SCHEMA,
-            tool_choice="auto",
+            model=_MODEL, messages=messages, tools=TOOLS_SCHEMA, tool_choice="auto",
         )
         msg = completion.choices[0].message
 
@@ -254,14 +277,12 @@ async def _llamar_gpt(messages: list) -> str:
             return msg.content or ""
 
         messages.append(msg)
-
         for tc in msg.tool_calls:
             nombre = tc.function.name
             try:
                 args = json.loads(tc.function.arguments)
             except json.JSONDecodeError:
                 args = {}
-
             fn = _TOOL_MAP.get(nombre)
             if fn:
                 try:
@@ -271,15 +292,7 @@ async def _llamar_gpt(messages: list) -> str:
                     logger.warning(resultado)
             else:
                 resultado = f"Tool desconocida: {nombre}"
+            messages.append({"role": "tool", "tool_call_id": tc.id, "content": resultado})
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": resultado,
-            })
-
-    completion = await _client.chat.completions.create(
-        model=_MODEL,
-        messages=messages,
-    )
+    completion = await _client.chat.completions.create(model=_MODEL, messages=messages)
     return completion.choices[0].message.content or ""
