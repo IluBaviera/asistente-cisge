@@ -203,8 +203,7 @@ async def _parsear(mensaje: str, historial: list) -> dict:
     try:
         prompt = (
             _PARSER_PROMPT
-            + f"\n\nSubfamilias válidas (usa SOLO estas):\n{_subfamilias_disponibles()}"
-            + f"\n\nGrupos válidos (elige uno exactamente para 'tipo'):\n{_grupos_disponibles()}"
+            + f"\n\nSubfamilias válidas (usa SOLO estas en el campo 'subfamilias'):\n{_subfamilias_disponibles()}"
         )
         messages = [{"role": "system", "content": prompt},
                     {"role": "user", "content": mensaje}]
@@ -403,17 +402,35 @@ Recibirás texto extraído de una imagen con productos y cantidades.
 Tu trabajo: convertir cada ítem en una línea que el motor de búsqueda entienda.
 Formato de salida: SOLO un JSON array de strings, sin texto adicional.
 
+Aliases comunes del sector hidráulico (normaliza siempre al término estándar):
+- forx / forxs / orx = ORFS
+- bssp / bsp p / bspp = BSPP
+- bspt / bsp t = BSPT
+- jic = JIC
+- npt = NPT
+- sae = SAE
+- casco / casq = CASQUILLO
+- gir / girat = GIRATORIO
+- hex = HEXAGONAL
+- red = REDUCTOR
+- ext = EXTERIOR
+- int = INTERIOR
+- h = HEMBRA
+- m = MACHO (solo si es conector, no medida)
+
 Reglas de conversión:
-- "1/4-r1 200"     → "R1 1/4 x 200"
-- "5/16-r1 100"    → "R1 5/16 x 100"
-- "1/2-r2 100"     → "R2 1/2 x 100"
-- "1/4-r6 200"     → "R6 1/4 x 200"
-- "M4 200"         → si hay encabezado de sección anterior (ej: "mang azul poliuretano"), incluirlo: "mang azul poliuretano M4 x 200"
-- Si la línea es solo un encabezado o separador (sin cantidad numérica), NO incluirla en el resultado
+- "1/4-r1 200"                   → "R1 1/4 x 200"
+- "5/16-r1 100"                  → "R1 5/16 x 100"
+- "espiga hembra forx 1\" 50"    → "espiga hembra ORFS 1\" x 50"
+- "espiga hembra bssp 11/2\" 10" → "espiga hembra BSPP 1 1/2\" x 10"
+- "casco r2 1\" 50"              → "casquillo R2 1\" x 50"
+- "M4 200" (bajo encabezado "mang azul poliuretano") → "mang azul poliuretano M4 x 200"
+- "11/2" o "11/4" sin espacio    → "1 1/2" y "1 1/4" (agregar espacio)
+- Si la línea es solo un encabezado/separador sin cantidad, NO incluirla
 - Si hay marca explícita (QF, JDE, LT, etc.), conservarla: "QF-R1-1/2 50" → "QF-R1-1/2 x 50"
 - Conserva las cantidades con "x N" al final
 
-Devuelve SOLO el JSON array: ["R1 1/4 x 200", "R1 5/16 x 100", ...]"""
+Devuelve SOLO el JSON array: ["R1 1/4 x 200", "espiga hembra ORFS 1\" x 50", ...]"""
 
 
 async def _parsear_lista_ocr(texto: str) -> list[str]:
