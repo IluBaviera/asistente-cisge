@@ -508,11 +508,11 @@ def formatear_resultado(fila, cantidad=1, descuento=0.0) -> str:
         almacenes = {a: c for a, c in almacenes_raw.items() if c > 0}
         if len(almacenes) == 1:
             alm, cant = next(iter(almacenes.items()))
-            resp += f"📦 Stock: {cant:.2f} {umed} ({alm})\n"
+            resp += f"📦 Stock: {cant:,.2f} {umed} ({alm})\n"
         else:
             resp += "📦 Stock:\n"
             for alm, cant in almacenes.items():
-                resp += f"  • {alm}: {cant:.2f} {umed}\n"
+                resp += f"  • {alm}: {cant:,.2f} {umed}\n"
 
     return resp
 
@@ -545,7 +545,7 @@ def formatear_multi_marca(resultados: pd.DataFrame) -> str:
             stock_txt = "🚫 AGOTADO"
         else:
             alm_con_stock = {a: c for a, c in fila["almacenes"].items() if c > 0}
-            partes = [f"{a.replace('Almacen ', '')}: {c:.0f}" for a, c in alm_con_stock.items()]
+            partes = [f"{a.replace('Almacen ', '')}: {c:,.0f}" for a, c in alm_con_stock.items()]
             stock_txt = f"📦 {' | '.join(partes)} {umed}"
 
         resp += f"{i}️⃣ *{marca}*  →  ${precio:.2f} x {umed}\n   {stock_txt}\n\n"
