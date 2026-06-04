@@ -373,17 +373,61 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     if not texto:
         return "No pude leer texto en la imagen. ¿Puedes enviar una foto más clara o escribir la lista directamente?"
 
-    # Paso 5 — cotizar todas las líneas en una sola llamada (formato compacto)
-    from app.motor import cotizar_multiple
-    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
-    logger.info(f"OCR [{numero_wa}]: {len(lineas)} líneas extraídas")
+    # Paso 5 — GPT interpreta el texto OCR y convierte a queries del motor
+    lineas_ocr = [l.strip() for l in texto.splitlines() if l.strip()]
+    logger.info(f"OCR [{numero_wa}]: {len(lineas_ocr)} líneas brutas extraídas")
+    try:
+        lineas = await _parsear_lista_ocr(texto)
+        logger.info(f"OCR [{numero_wa}]: {len(lineas)} líneas interpretadas por GPT")
+    except Exception as e:
+        logger.warning(f"_parsear_lista_ocr error: {e} — usando líneas brutas")
+        lineas = lineas_ocr
 
+    # Paso 6 — cotizar todas las líneas en una sola llamada (formato compacto)
+    from app.motor import cotizar_multiple
     try:
         respuesta_final = cotizar_multiple(lineas)
     except Exception as e:
         logger.warning(f"cotizar_multiple error: {e}")
         respuesta_final = "Pude leer la imagen pero hubo un error al cotizar. Escribe la lista directamente."
 
-    # Paso 6 — guardar como un solo intercambio en historial
-    guardar_mensajes(numero_wa, f"[imagen: {len(lineas)} líneas]", respuesta_final)
+    # Paso 7 — guardar como un solo intercambio en historial
+    guardar_mensajes(numero_wa, f"[imagen: {len(lineas)} ítems]", respuesta_final)
     return respuesta_final
+
+
+_PARSEAR_LISTA_PROMPT = """\
+Eres un intérprete de listas de productos para CISGE, distribuidora peruana de mangueras hidráulicas.
+Recibirás texto extraído de una imagen con productos y cantidades.
+
+Tu trabajo: convertir cada ítem en una línea que el motor de búsqueda entienda.
+Formato de salida: SOLO un JSON array de strings, sin texto adicional.
+
+Reglas de conversión:
+- "1/4-r1 200"     → "R1 1/4 x 200"
+- "5/16-r1 100"    → "R1 5/16 x 100"
+- "1/2-r2 100"     → "R2 1/2 x 100"
+- "1/4-r6 200"     → "R6 1/4 x 200"
+- "M4 200"         → si hay encabezado de sección anterior (ej: "mang azul poliuretano"), incluirlo: "mang azul poliuretano M4 x 200"
+- Si la línea es solo un encabezado o separador (sin cantidad numérica), NO incluirla en el resultado
+- Si hay marca explícita (QF, JDE, LT, etc.), conservarla: "QF-R1-1/2 50" → "QF-R1-1/2 x 50"
+- Conserva las cantidades con "x N" al final
+
+Devuelve SOLO el JSON array: ["R1 1/4 x 200", "R1 5/16 x 100", ...]"""
+
+
+async def _parsear_lista_ocr(texto: str) -> list[str]:
+    """GPT convierte texto OCR crudo en queries limpias para el motor."""
+    completion = await _client.chat.completions.create(
+        model=_MODEL,
+        messages=[
+            {"role": "system", "content": _PARSEAR_LISTA_PROMPT},
+            {"role": "user",   "content": texto},
+        ],
+        temperature=0,
+    )
+    raw = completion.choices[0].message.content.strip()
+    raw = re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw)
+    resultado = json.loads(raw)
+    return [l for l in resultado if isinstance(l, str) and l.strip()]
