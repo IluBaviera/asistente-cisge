@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from app.motor import consultar
 from app.motor import log_consultas
 from app.motor import refresh_stock_loop
-from app.agente import agente_cisge
+from app.agente import agente_cisge, procesar_imagen_whatsapp
 import asyncio
 import httpx
 import os
@@ -90,8 +90,8 @@ async def _procesar_mensaje(data: dict):
             return
         msg     = value["messages"][0]
         msg_id  = msg["id"]
-        mensaje = msg["text"]["body"]
         numero  = msg["from"]
+        tipo    = msg.get("type", "text")
 
         # Whitelist fase de pruebas
         if numero not in NUMEROS_PERMITIDOS:
@@ -105,7 +105,17 @@ async def _procesar_mensaje(data: dict):
             mensajes_procesados.clear()
 
         await marcar_leido(msg_id)
-        respuesta = await agente_cisge(mensaje, numero)
+
+        if tipo == "text":
+            mensaje  = msg["text"]["body"]
+            respuesta = await agente_cisge(mensaje, numero)
+        elif tipo == "image":
+            image_id  = msg["image"]["id"]
+            respuesta = await procesar_imagen_whatsapp(image_id, numero)
+        else:
+            logger.info(f"Tipo de mensaje ignorado: {tipo}")
+            respuesta = "Solo proceso mensajes de texto e imágenes de listas de productos. Para consultas escríbeme directamente."
+
         await enviar_whatsapp(numero, respuesta)
     except Exception as e:
         logger.error(f"Error en _procesar_mensaje: {e}", exc_info=True)

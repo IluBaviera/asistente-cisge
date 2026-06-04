@@ -1,7 +1,9 @@
 import os
 import re
 import json
+import base64
 import logging
+import httpx
 from openai import AsyncOpenAI
 from app.db import cargar_historial, guardar_mensajes
 from app.tools import TOOLS_SCHEMA, tool_buscar_producto, tool_ver_stock, tool_generar_cotizacion
@@ -308,3 +310,79 @@ async def _llamar_gpt(messages: list) -> str:
 
     completion = await _client.chat.completions.create(model=_MODEL, messages=messages)
     return completion.choices[0].message.content or ""
+
+
+# ── Procesamiento de imágenes WhatsApp ────────────────────────────────────────
+
+_WA_TOKEN = os.getenv("WHATSAPP_TOKEN")
+
+_OCR_PROMPT = """\
+Eres un extractor de texto de imágenes para CISGE, distribuidora industrial peruana.
+Tu único trabajo es extraer el texto de la imagen lo más fiel posible, sin interpretar ni reformatear.
+Devuelve SOLO JSON: {"texto_extraido": "..."}
+Si la imagen no contiene una lista de productos o texto legible, devuelve: {"texto_extraido": ""}"""
+
+
+async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
+    """Descarga imagen de WhatsApp, extrae texto con GPT-4o Vision y procesa cada línea."""
+    headers_wa = {"Authorization": f"Bearer {_WA_TOKEN}"}
+
+    # Paso 1 — obtener URL de la imagen desde Meta
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"https://graph.facebook.com/v19.0/{image_id}",
+            headers=headers_wa, timeout=10,
+        )
+        r.raise_for_status()
+        image_url = r.json().get("url")
+        if not image_url:
+            return "No pude obtener la imagen. Intenta de nuevo."
+
+        # Paso 2 — descargar imagen en memoria
+        r2 = await client.get(image_url, headers=headers_wa, timeout=20)
+        r2.raise_for_status()
+        image_b64 = base64.b64encode(r2.content).decode()
+        mime = r2.headers.get("content-type", "image/jpeg").split(";")[0]
+
+    # Paso 3 — OCR con GPT-4o Vision
+    try:
+        completion = await _client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _OCR_PROMPT},
+                {"role": "user", "content": [
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:{mime};base64,{image_b64}"
+                    }}
+                ]},
+            ],
+            max_tokens=1000,
+            temperature=0,
+        )
+        ocr = json.loads(completion.choices[0].message.content.strip())
+        texto = ocr.get("texto_extraido", "").strip()
+    except Exception as e:
+        logger.warning(f"OCR error: {e}")
+        return "Hubo un problema leyendo la imagen. Intenta de nuevo o escribe la lista directamente."
+
+    # Paso 4 — imagen sin texto legible
+    if not texto:
+        return "No pude leer texto en la imagen. ¿Puedes enviar una foto más clara o escribir la lista directamente?"
+
+    # Paso 5 — procesar cada línea con el motor (sin guardar historial por línea)
+    from app.motor import consultar as motor_consultar
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    logger.info(f"OCR [{numero_wa}]: {len(lineas)} líneas extraídas")
+
+    resultados = []
+    for linea in lineas:
+        try:
+            _, r = motor_consultar(linea)
+        except Exception:
+            r = f"❌ Error procesando: {linea}"
+        resultados.append(f"*{linea}*\n{r}")
+
+    # Paso 6 — consolidar y guardar como un solo intercambio
+    respuesta_final = f"📋 Procesé {len(lineas)} líneas de la imagen:\n\n" + "\n\n─────\n\n".join(resultados)
+    guardar_mensajes(numero_wa, f"[imagen {image_id}]", respuesta_final)
+    return respuesta_final
