@@ -190,10 +190,8 @@ async def _parsear(mensaje: str, historial: list) -> dict:
             + f"\n\nSubfamilias válidas (usa SOLO estas):\n{_subfamilias_disponibles()}"
             + f"\n\nGrupos válidos (elige uno exactamente para 'tipo'):\n{_grupos_disponibles()}"
         )
-        contexto_usuario = [m for m in historial[-6:] if m["role"] == "user"]
-        messages = [{"role": "system", "content": prompt}]
-        messages.extend(contexto_usuario)
-        messages.append({"role": "user", "content": mensaje})
+        messages = [{"role": "system", "content": prompt},
+                    {"role": "user", "content": mensaje}]
         completion = await _client.chat.completions.create(
             model=_MODEL, messages=messages, temperature=0,
         )
