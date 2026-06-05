@@ -521,7 +521,7 @@ def formatear_lista(resultados: pd.DataFrame, titulo: str) -> str:
     resp = f"{titulo}\n\n"
     for _, fila in resultados.iterrows():
         resp += (
-            f"• *{fila['codigo']}*\n"
+            f"• *{fila['codigo']}* — {fila['marca']}\n"
             f"  {fila['descripcion'].title()[:50]}\n"
             f"  💰 ${float(fila['precio']):.2f}\n\n"
         )
@@ -564,7 +564,7 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None, doble_hex=False) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     medidas_aplicadas = False
@@ -612,6 +612,11 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             ]
             if not r_r2.empty:
                 r = r_r2
+    # Doble hexágono: excluir por defecto; incluir solo si el usuario lo pide
+    if not doble_hex:
+        r_sin_hex = r[~r["descripcion"].str.contains(r"c/hex|doble hex", na=False, case=False, regex=True)]
+        if not r_sin_hex.empty:
+            r = r_sin_hex
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if subtipo and subtipo in ("1SN", "2SN"):
@@ -661,6 +666,14 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             if superficie == "corrugada":
                 mascara = mascara | (r["medida_cod"].str.strip() == f"CORG-{nominal}")
         r = r[mascara]
+        # Excluir reductores: si el producto tiene múltiples segmentos de medida
+        # y no todos coinciden con la medida pedida, es un reductor — filtrar
+        medida_lim = medida.strip().rstrip('"').strip()
+        r_uniforme = r[r["medidas_cod"].apply(
+            lambda m: len(m) <= 1 or all(x.rstrip('"').strip() == medida_lim for x in m)
+        )]
+        if not r_uniforme.empty:
+            r = r_uniforme
     return r
 
 def buscar_por_descripcion(palabras: list) -> pd.DataFrame:

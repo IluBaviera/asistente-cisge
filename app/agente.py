@@ -44,6 +44,7 @@ Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
   "presion": "",
   "angulo": "",
   "cola": "",
+  "doble_hex": false,
   "es_saludo": false
 }
 subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
@@ -55,6 +56,7 @@ color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
 angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). Aplica a espigas, adaptadores, bridas y prearmadas.
 cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
+doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/hex". Default false.
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Si es_saludo es true, deja todos los demás campos vacíos.
@@ -230,6 +232,7 @@ def _buscar_con_parsed(parsed: dict) -> str:
     color       = parsed.get("color") or None
     angulo      = parsed.get("angulo") or None
     cola        = parsed.get("cola") or None
+    doble_hex   = bool(parsed.get("doble_hex"))
     subfamilias_raw = parsed.get("subfamilias") or []
     subfamilias = _validar_subfamilias(subfamilias_raw)
     if subfamilias_raw and subfamilias_raw != (subfamilias or []):
@@ -248,7 +251,7 @@ def _buscar_con_parsed(parsed: dict) -> str:
     resultados = buscar_por_tipo_medida_marca(
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subtipo=subtipo_ht, subfamilias=subfamilias, medidas=medidas or None,
-        angulo=angulo, cola=cola,
+        angulo=angulo, cola=cola, doble_hex=doble_hex,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
 
