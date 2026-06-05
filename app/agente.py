@@ -388,7 +388,11 @@ _OCR_PROMPT = """\
 Eres un extractor de texto de imágenes para CISGE, distribuidora industrial peruana.
 Tu único trabajo es extraer el texto de la imagen lo más fiel posible, sin interpretar ni reformatear.
 Devuelve SOLO JSON: {"texto_extraido": "..."}
-Si la imagen no contiene una lista de productos o texto legible, devuelve: {"texto_extraido": ""}"""
+Si la imagen no contiene una lista de productos o texto legible, devuelve: {"texto_extraido": ""}
+
+Contexto: lista de pedido de accesorios hidráulicos en Perú. Ante escritura ambigua, prioriza estos términos frecuentes:
+  casco, ferrula, espiga, adaptador, codo, niple, union, valvula, manguera, rollo, liso, larga.
+Pista clave: "casco" (ferrula) siempre aparece junto a tipos SAE como R1, R2, R12 — si un término ambiguo va seguido de R1/R2/R12, es casi siempre "casco", no "codo"."""
 
 
 async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
