@@ -515,26 +515,31 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         return "No pude interpretar la lista. Escríbela directamente."
 
     # Paso 6 — E3 local para cada ítem
-    partes       = []
-    items_excel  = []
+    partes      = []
+    items_excel = []
     for i, parsed in enumerate(parsed_list, start=1):
         linea_orig = parsed.get("linea_original", "?")
         cantidad   = int(parsed.get("cantidad", 1))
-        fila = _buscar_fila_imagen(parsed, cantidad)
-        if fila is not None:
-            resultado = formatear_resultado(fila, cantidad)
+        resultado  = _buscar_con_parsed(parsed, imagen_cantidad=cantidad)
+        if resultado:
             partes.append(f"{i}️⃣ *{linea_orig}* (x{cantidad})\n{resultado}")
-            precio_u = float(fila["precio"])
-            subtotal = round(precio_u * cantidad, 2)
-            items_excel.append({
-                "codigo":     fila["codigo"],
-                "descripcion": fila["descripcion"].title(),
-                "cantidad":   cantidad,
-                "precio_unit": precio_u,
-                "subtotal":   subtotal,
-                "igv":        round(subtotal * IGV, 2),
-                "total":      round(subtotal * (1 + IGV), 2),
-            })
+            # Captura de datos para Excel — best effort, no afecta el flujo WhatsApp
+            try:
+                fila = _buscar_fila_imagen(parsed, cantidad)
+                if fila is not None:
+                    precio_u = float(fila["precio"])
+                    subtotal = round(precio_u * cantidad, 2)
+                    items_excel.append({
+                        "codigo":      fila["codigo"],
+                        "descripcion": fila["descripcion"].title(),
+                        "cantidad":    cantidad,
+                        "precio_unit": precio_u,
+                        "subtotal":    subtotal,
+                        "igv":         round(subtotal * IGV, 2),
+                        "total":       round(subtotal * (1 + IGV), 2),
+                    })
+            except Exception as exc:
+                logger.warning(f"Excel capture error '{linea_orig}': {exc}")
         else:
             partes.append(f"{i}️⃣ ❌ _{linea_orig}_")
 
