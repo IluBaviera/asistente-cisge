@@ -564,7 +564,7 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     medidas_aplicadas = False
@@ -596,6 +596,22 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             elif tipo_up == "TSER":
                 mascara_tipo = r["tipo_cod"].str.upper().str.startswith("TSER", na=False)
             r = r[mascara_tipo]
+    # Cola (R2/R12/INTERLOCK) — solo para espigas, bridas y prearmadas
+    _es_accesorio = tipo and tipo.upper().split()[0] in ("ESPIGA", "BRIDA", "PREARMADA")
+    if _es_accesorio:
+        if cola == "R12":
+            r = r[r["grupo"].str.contains(r"\bR12\b", na=False, regex=True)]
+        elif cola == "INTERLOCK":
+            r = r[r["grupo"].str.contains(r"INTERLOCK|R13|R15", na=False, regex=True, case=False)]
+        else:
+            # Default R2: excluir R12 e INTERLOCK si hay resultados R2
+            r_r2 = r[
+                r["grupo"].str.contains(r"\bR2\b", na=False, regex=True) &
+                ~r["grupo"].str.contains(r"\bR12\b", na=False, regex=True) &
+                ~r["grupo"].str.contains("INTERLOCK", na=False, case=False)
+            ]
+            if not r_r2.empty:
+                r = r_r2
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if subtipo and subtipo in ("1SN", "2SN"):

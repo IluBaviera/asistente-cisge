@@ -43,6 +43,7 @@ Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
   "color": "",
   "presion": "",
   "angulo": "",
+  "cola": "",
   "es_saludo": false
 }
 subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
@@ -53,6 +54,7 @@ marca: marca oficial: QF, JDEFLEX, VITILLO, MACTUBI, AF, LT, DME, etc.
 color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
 angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). Aplica a espigas, adaptadores, bridas y prearmadas.
+cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Si es_saludo es true, deja todos los demás campos vacíos.
@@ -227,6 +229,7 @@ def _buscar_con_parsed(parsed: dict) -> str:
     presion     = parsed.get("presion") or None
     color       = parsed.get("color") or None
     angulo      = parsed.get("angulo") or None
+    cola        = parsed.get("cola") or None
     subfamilias_raw = parsed.get("subfamilias") or []
     subfamilias = _validar_subfamilias(subfamilias_raw)
     if subfamilias_raw and subfamilias_raw != (subfamilias or []):
@@ -240,12 +243,12 @@ def _buscar_con_parsed(parsed: dict) -> str:
     logger.info(
         f"E3: buscar_por_tipo_medida_marca("
         f"tipo={tipo!r}, medida={medida!r}, medidas={medidas}, marca={marca!r}, "
-        f"presion={presion!r}, angulo={angulo!r}, subfamilias={subfamilias})"
+        f"presion={presion!r}, angulo={angulo!r}, cola={cola!r}, subfamilias={subfamilias})"
     )
     resultados = buscar_por_tipo_medida_marca(
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subtipo=subtipo_ht, subfamilias=subfamilias, medidas=medidas or None,
-        angulo=angulo,
+        angulo=angulo, cola=cola,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
 
@@ -421,7 +424,7 @@ Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES I
 "NIPLES", "CAMLOCK", "BRIDAS", "TUBERIAS HIDRAULICAS", "PREARMADAS", "MANOMETROS"
 
 Devuelve SOLO un JSON array. Cada elemento:
-{{"linea_original":"texto como aparece","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
+{{"linea_original":"texto como aparece","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
 
 Reglas:
 - "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
@@ -429,7 +432,8 @@ Reglas:
 - Tipo: usa el nombre más descriptivo posible (ej: "ESPIGA HEMBRA ORFS", no solo "ESPIGA")
 - Si hay dos medidas separadas por x (ej: "3/8 x 3/8"), ponlas en medidas: ["3/8","3/8"] y deja medida vacío
 - Si no hay cantidad explícita, usar 1
-- angulo: "45" si dice 45°, "90" si dice 90°, "" si no especifica (recta)"""
+- angulo: "45" si dice 45°, "90" si dice 90°, "" si no especifica (recta)
+- cola: "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2)"""
 
 
 async def _parsear_lineas_imagen(texto: str) -> list[dict]:
