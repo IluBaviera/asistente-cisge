@@ -61,6 +61,8 @@ doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/h
 ferrula_tm: solo para ferrulas — "si" si pide T/M/tipo manulli/manulli, "no" si pide lisa (sin T/M), "" si no especifica (mostrar ambas variantes).
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, lisa = sin T/M (ferrula_tm="no"), t/m/manulli/tipo manulli = ferrula_tm="si".
+Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 04→1/4 | 06→3/8 | 08→1/2 | 12→3/4 | 16→1 | 20→1 1/4 | 24→1 1/2 — Ej: "JIC16"=1", "NPT08"=1/2".
+Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
 Si es_saludo es true, deja todos los demás campos vacíos.
@@ -486,7 +488,21 @@ Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES I
 Devuelve SOLO un JSON array. Cada elemento:
 {{"linea_original":"texto como aparece","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
 
-Reglas:
+TABLA DE MEDIDAS NOMINALES (código 2 dígitos pegado al tipo → pulgadas):
+03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2
+Ej: "JIC16" = JIC 1", "NPT08" = NPT 1/2", "ORFS12" = ORFS 3/4".
+
+ESTRUCTURA TERMINAL-ESPIGA (dos medidas/tipos separados por "-"):
+Las espigas tienen dos lados: TERMINAL (manguera) y ESPIGA (rosca).
+- Mismo tipo de rosca: es ESPIGA → medidas=[medida_terminal, medida_espiga], deja medida vacío
+  Ej: "terminal JIC 16 - 12 Esp" → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
+  Ej: "JIC16-JIC12" → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
+- Distintos tipos de rosca: es ADAPTADOR → tipo="ADAP MACHO X1 X HEMBRA X2"
+  Ej: "NPT08 - JIC16 90" → tipo="ADAP MACHO NPT X HEMBRA JIC", medidas=["1/2","1"], angulo="90"
+  Ej: "BSP12-ORFS08" → tipo="ADAP MACHO BSP X HEMBRA ORFS", medidas=["3/4","1/2"]
+  Convención: primer tipo=MACHO, segundo tipo=HEMBRA. Número suelto al final (45/90)=angulo.
+
+Reglas generales:
 - "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
 - Si una línea es encabezado sin cantidad (ej: "mang azul poliuretano"), úsala como contexto para las siguientes
 - Tipo: usa el nombre más descriptivo posible (ej: "ESPIGA HEMBRA ORFS", no solo "ESPIGA")
