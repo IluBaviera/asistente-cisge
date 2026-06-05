@@ -372,73 +372,67 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     if not texto:
         return "No pude leer texto en la imagen. ¿Puedes enviar una foto más clara o escribir la lista directamente?"
 
-    # Paso 5 — GPT interpreta el texto OCR y convierte a queries del motor
-    lineas_ocr = [l.strip() for l in texto.splitlines() if l.strip()]
-    logger.info(f"OCR [{numero_wa}]: {len(lineas_ocr)} líneas brutas extraídas")
+    # Paso 5 — GPT parsea el texto OCR a campos estructurados (tipo/medida/marca/cantidad)
+    n_brutas = len([l for l in texto.splitlines() if l.strip()])
+    logger.info(f"OCR [{numero_wa}]: {n_brutas} líneas brutas extraídas")
     try:
-        lineas = await _parsear_lista_ocr(texto)
-        logger.info(f"OCR [{numero_wa}]: {len(lineas)} líneas interpretadas por GPT")
+        parsed_list = await _parsear_lineas_imagen(texto)
+        logger.info(f"OCR [{numero_wa}]: {len(parsed_list)} ítems parseados")
     except Exception as e:
-        logger.warning(f"_parsear_lista_ocr error: {e} — usando líneas brutas")
-        lineas = lineas_ocr
+        logger.warning(f"_parsear_lineas_imagen error: {e}")
+        guardar_mensajes(numero_wa, "[imagen]", "No pude interpretar la lista. Escríbela directamente.")
+        return "No pude interpretar la lista. Escríbela directamente."
 
-    # Paso 6 — cotizar todas las líneas en una sola llamada (formato compacto)
-    from app.motor import cotizar_multiple
-    try:
-        respuesta_final = cotizar_multiple(lineas)
-    except Exception as e:
-        logger.warning(f"cotizar_multiple error: {e}")
-        respuesta_final = "Pude leer la imagen pero hubo un error al cotizar. Escribe la lista directamente."
+    # Paso 6 — E3 local para cada ítem
+    partes = []
+    for i, parsed in enumerate(parsed_list, start=1):
+        linea_orig = parsed.get("linea_original", "?")
+        cantidad   = int(parsed.get("cantidad", 1))
+        resultado  = _buscar_con_parsed(parsed)
+        if resultado:
+            # Resultado puede ser ficha, multi-marca o lista — etiquetar con número
+            partes.append(f"{i}️⃣ *{linea_orig}* (x{cantidad})\n{resultado}")
+        else:
+            partes.append(f"{i}️⃣ ❌ _{linea_orig}_")
 
-    # Paso 7 — guardar como un solo intercambio en historial
-    guardar_mensajes(numero_wa, f"[imagen: {len(lineas)} ítems]", respuesta_final)
+    respuesta_final = "\n\n─────\n\n".join(partes)
+    if not respuesta_final:
+        respuesta_final = "No encontré ningún producto en la imagen."
+
+    # Paso 7 — guardar como un solo intercambio
+    guardar_mensajes(numero_wa, f"[imagen: {len(parsed_list)} ítems]", respuesta_final)
     return respuesta_final
 
 
-_PARSEAR_LISTA_PROMPT = """\
-Eres un intérprete de listas de productos para CISGE, distribuidora peruana de mangueras hidráulicas.
-Recibirás texto extraído de una imagen con productos y cantidades.
+_PARSEAR_LINEAS_PROMPT = f"""\
+Eres un parser para CISGE, distribuidora peruana de mangueras hidráulicas.
+Recibirás texto OCR de una lista de productos. Para cada ítem con cantidad, extrae campos estructurados.
 
-Tu trabajo: convertir cada ítem en una línea que el motor de búsqueda entienda.
-Formato de salida: SOLO un JSON array de strings, sin texto adicional.
+Aliases (normaliza siempre):
+forx/orx/orfs = ORFS | bssp/bspp = BSPP | bspt = BSPT | jic = JIC | npt = NPT
+casco/casq = CASQUILLO | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
 
-Aliases comunes del sector hidráulico (normaliza siempre al término estándar):
-- forx / forxs / orx = ORFS
-- bssp / bsp p / bspp = BSPP
-- bspt / bsp t = BSPT
-- jic = JIC
-- npt = NPT
-- sae = SAE
-- casco / casq = CASQUILLO
-- gir / girat = GIRATORIO
-- hex = HEXAGONAL
-- red = REDUCTOR
-- ext = EXTERIOR
-- int = INTERIOR
-- h = HEMBRA
-- m = MACHO (solo si es conector, no medida)
+Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
+"FERRULAS", "MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES", "VALVULAS",
+"NIPLES", "CAMLOCK", "BRIDAS", "TUBERIAS HIDRAULICAS", "PREARMADAS", "MANOMETROS"
 
-Reglas de conversión:
-- "1/4-r1 200"                   → "R1 1/4 x 200"
-- "5/16-r1 100"                  → "R1 5/16 x 100"
-- "espiga hembra forx 1\" 50"    → "espiga hembra ORFS 1\" x 50"
-- "espiga hembra bssp 11/2\" 10" → "espiga hembra BSPP 1 1/2\" x 10"
-- "casco r2 1\" 50"              → "casquillo R2 1\" x 50"
-- "M4 200" (bajo encabezado "mang azul poliuretano") → "mang azul poliuretano M4 x 200"
-- "11/2" o "11/4" sin espacio    → "1 1/2" y "1 1/4" (agregar espacio)
-- Si la línea es solo un encabezado/separador sin cantidad, NO incluirla
-- Si hay marca explícita (QF, JDE, LT, etc.), conservarla: "QF-R1-1/2 50" → "QF-R1-1/2 x 50"
-- Conserva las cantidades con "x N" al final
+Devuelve SOLO un JSON array. Cada elemento:
+{{"linea_original":"texto como aparece","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"subfamilias":["ESPIGAS I","ESPIGAS II"]}}
 
-Devuelve SOLO el JSON array: ["R1 1/4 x 200", "espiga hembra ORFS 1\" x 50", ...]"""
+Reglas:
+- "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
+- Si una línea es encabezado sin cantidad (ej: "mang azul poliuretano"), úsala como contexto para las siguientes
+- Tipo: usa el nombre más descriptivo posible (ej: "ESPIGA HEMBRA ORFS", no solo "ESPIGA")
+- Si hay dos medidas separadas por x (ej: "3/8 x 3/8"), ponlas en medidas: ["3/8","3/8"] y deja medida vacío
+- Si no hay cantidad explícita, usar 1"""
 
 
-async def _parsear_lista_ocr(texto: str) -> list[str]:
-    """GPT convierte texto OCR crudo en queries limpias para el motor."""
+async def _parsear_lineas_imagen(texto: str) -> list[dict]:
+    """Una sola llamada GPT que convierte OCR a lista de dicts estructurados."""
     completion = await _client.chat.completions.create(
         model=_MODEL,
         messages=[
-            {"role": "system", "content": _PARSEAR_LISTA_PROMPT},
+            {"role": "system", "content": _PARSEAR_LINEAS_PROMPT},
             {"role": "user",   "content": texto},
         ],
         temperature=0,
@@ -447,4 +441,4 @@ async def _parsear_lista_ocr(texto: str) -> list[str]:
     raw = re.sub(r'^```(?:json)?\s*', '', raw)
     raw = re.sub(r'\s*```$', '', raw)
     resultado = json.loads(raw)
-    return [l for l in resultado if isinstance(l, str) and l.strip()]
+    return [l for l in resultado if isinstance(l, dict)]
