@@ -142,6 +142,17 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
                     prefijo = alt_r
                     logger.info(f"agente [{numero_wa}]: E2 VITILLO corregido → {alt}")
 
+        # Fallback: si el texto tiene espacios, probar tokens numéricos como prefijo
+        # Ej: "Ferrula 03310" → probar "03310"
+        if prefijo.empty and ' ' in texto_cod:
+            for token in texto_cod.split():
+                if token[0].isdigit() and len(token) >= 3:
+                    alt_tok = buscar_por_codigo_prefijo(token)
+                    if not alt_tok.empty:
+                        prefijo = alt_tok
+                        logger.info(f"agente [{numero_wa}]: E2 token numérico → {token}")
+                        break
+
         if len(prefijo) == 1:
             fila = prefijo.iloc[0]
             logger.info(f"agente [{numero_wa}]: E2 prefijo único ({fila['codigo']})")
