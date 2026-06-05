@@ -564,7 +564,7 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None, doble_hex=False) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None, doble_hex=False, ferrula_tm="") -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     medidas_aplicadas = False
@@ -576,9 +576,13 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["subfamilia"].isin(subfamilias)]
     if tipo:
         tipo_up = tipo.upper()
-        # startswith cubre exacto y variantes ("ESPIGA MACHO NPT" → "ESPIGA MACHO NPT R2")
-        if r["grupo"].str.upper().str.startswith(tipo_up, na=False).any():
-            r = r[r["grupo"].str.upper().str.startswith(tipo_up, na=False)]
+        # Match exacto O prefijo con espacio: evita que "FERRULA R1" matchee "FERRULA R12"
+        mask_tipo = (
+            (r["grupo"].str.upper() == tipo_up) |
+            r["grupo"].str.upper().str.startswith(tipo_up + " ", na=False)
+        )
+        if mask_tipo.any():
+            r = r[mask_tipo]
         else:
             # Fallback: lógica anterior por tipo_cod
             tipos_posibles = TIPO_SAE_MAP.get(tipo_up, [tipo_up])
@@ -617,6 +621,15 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r_sin_hex = r[~r["descripcion"].str.contains(r"c/hex|doble hex", na=False, case=False, regex=True)]
         if not r_sin_hex.empty:
             r = r_sin_hex
+    # Ferrula T/M: "si"=solo T/M, "no"=excluir T/M (lisa), ""=ambas
+    if ferrula_tm == "si":
+        r_tm = r[r["grupo"].str.contains(r"T/M", na=False, case=False)]
+        if not r_tm.empty:
+            r = r_tm
+    elif ferrula_tm == "no":
+        r_lisa = r[~r["grupo"].str.contains(r"T/M", na=False, case=False)]
+        if not r_lisa.empty:
+            r = r_lisa
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if subtipo and subtipo in ("1SN", "2SN"):

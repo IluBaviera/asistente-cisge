@@ -45,6 +45,7 @@ Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
   "angulo": "",
   "cola": "",
   "doble_hex": false,
+  "ferrula_tm": "",
   "es_saludo": false
 }
 subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
@@ -57,7 +58,9 @@ presion: si se menciona presión de trabajo
 angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). Aplica a espigas, adaptadores, bridas y prearmadas.
 cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
 doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/hex". Default false.
+ferrula_tm: solo para ferrulas — "si" si pide T/M/tipo manulli/manulli, "no" si pide lisa (sin T/M), "" si no especifica (mostrar ambas variantes).
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
+Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, lisa = sin T/M (ferrula_tm="no"), t/m/manulli/tipo manulli = ferrula_tm="si".
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
 Si es_saludo es true, deja todos los demás campos vacíos.
@@ -277,6 +280,7 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     angulo      = parsed.get("angulo") or None
     cola        = parsed.get("cola") or None
     doble_hex   = bool(parsed.get("doble_hex"))
+    ferrula_tm  = parsed.get("ferrula_tm") or ""
     subfamilias_raw = parsed.get("subfamilias") or []
     subfamilias = _validar_subfamilias(subfamilias_raw)
     if subfamilias_raw and subfamilias_raw != (subfamilias or []):
@@ -295,7 +299,7 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     resultados = buscar_por_tipo_medida_marca(
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subtipo=subtipo_ht, subfamilias=subfamilias, medidas=medidas or None,
-        angulo=angulo, cola=cola, doble_hex=doble_hex,
+        angulo=angulo, cola=cola, doble_hex=doble_hex, ferrula_tm=ferrula_tm,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
 
