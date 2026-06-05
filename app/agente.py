@@ -59,7 +59,7 @@ cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12
 doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/hex". Default false.
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp/bspp = BSPP | bspt = BSPT
+Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
 Si es_saludo es true, deja todos los demás campos vacíos.
 Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
 IMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."""
@@ -420,7 +420,7 @@ Eres un parser para CISGE, distribuidora peruana de mangueras hidráulicas.
 Recibirás texto OCR de una lista de productos. Para cada ítem con cantidad, extrae campos estructurados.
 
 Aliases (normaliza siempre):
-forx/orx/orfs = ORFS | bssp/bspp = BSPP | bspt = BSPT | jic = JIC | npt = NPT
+forx/orx/orfs = ORFS | bssp = BSP (typo de bsp) | bspp = BSPP | bspt = BSPT | jic = JIC | npt = NPT
 casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
