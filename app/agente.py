@@ -64,8 +64,7 @@ Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 04→1/4 | 06→3/8 | 08→1/2 | 12→3/4 | 16→1 | 20→1 1/4 | 24→1 1/2 — Ej: "JIC16"=1", "NPT08"=1/2".
 Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
-"codo" seguido de tipo SAE (R1, R2, R12, etc.) = FERRULA (error OCR/escritura de "casco" — los codos reales no tienen subtipo SAE).
+Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | codo+SAE = FERRULA (OCR confunde "casco" con "codo")
 Si es_saludo es true, deja todos los demás campos vacíos.
 Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
 IMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."""
@@ -485,7 +484,7 @@ Recibirás texto OCR de una lista de productos. Para cada ítem con cantidad, ex
 Aliases (normaliza siempre):
 forx/orx/orfs = ORFS | bssp = BSP (typo de bsp) | bspp = BSPP | bspt = BSPT | jic = JIC | npt = NPT
 casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
-IMPORTANTE: Si el OCR dice "codo" pero va seguido de un tipo SAE (R1, R2, R12, R1T, R2T, etc.), trátalo como "casco" (FERRULA). Los codos hidráulicos reales nunca llevan subtipo SAE — si hay SAE, es un error OCR de "casco".
+codo seguido de subtipo SAE (R1/R2/R12/etc.) = FERRULA (OCR confunde "casco" con "codo"; los codos reales no tienen subtipo SAE)
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
 "FERRULAS", "MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES", "VALVULAS",
