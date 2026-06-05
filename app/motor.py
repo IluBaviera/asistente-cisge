@@ -564,20 +564,20 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     medidas_aplicadas = False
+    # Insertar ángulo en el tipo antes del matching: "ESPIGA HEMBRA ORFS" + 90 → "ESPIGA 90° HEMBRA ORFS"
+    if angulo in ("45", "90") and tipo:
+        partes = tipo.split(" ", 1)
+        tipo = partes[0] + f" {angulo}°" + (" " + partes[1] if len(partes) > 1 else "")
     if subfamilias:
         r = r[r["subfamilia"].isin(subfamilias)]
     if tipo:
         tipo_up = tipo.upper()
-        # Intento 1: match exacto por grupo (campo directo del ERP)
-        mask_grupo = r["grupo"].str.upper() == tipo_up
-        if mask_grupo.any():
-            r = r[mask_grupo]
-        # Intento 2: startswith — "ESPIGA MACHO NPT" encuentra "ESPIGA MACHO NPT R2"
-        elif r["grupo"].str.upper().str.startswith(tipo_up, na=False).any():
+        # startswith cubre exacto y variantes ("ESPIGA MACHO NPT" → "ESPIGA MACHO NPT R2")
+        if r["grupo"].str.upper().str.startswith(tipo_up, na=False).any():
             r = r[r["grupo"].str.upper().str.startswith(tipo_up, na=False)]
         else:
             # Fallback: lógica anterior por tipo_cod
