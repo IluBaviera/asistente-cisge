@@ -17,12 +17,23 @@ from app.motor import (
     extraer_cantidad,
     extraer_descuento,
     df as motor_df,
+    IGV,
+    _stock_total,
 )
 
 logger = logging.getLogger(__name__)
 
 _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 _MODEL  = "gpt-4.1-mini"
+
+# Respuestas afirmativas que activan el envío de Excel pendiente
+_AFIRMATIVO = re.compile(
+    r'^\s*(s[ií]|ok|dale|env[íi]a(lo)?|m[aá]ndalo|listo|claro|por\s+favor|perfecto|va|bueno)\s*[.!]?\s*$',
+    re.IGNORECASE,
+)
+
+# Cache en memoria: última cotización de imagen lista para exportar a Excel
+_cotizaciones_pendientes: dict[str, list[dict]] = {}
 
 # Preguntas de intención sobre marcas → GPT directo (antes de cualquier búsqueda)
 _INTENT_MARCAS = re.compile(
@@ -111,6 +122,20 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     logger.info(f"agente [{numero_wa}]: historial={len(historial)} msgs | "
                 + " | ".join(f"{m['role']}:{m['content'][:40]!r}" for m in historial)
                 if historial else f"agente [{numero_wa}]: historial vacío")
+
+    # ── Pre-check: Excel pendiente ────────────────────────────────────────────
+    if numero_wa in _cotizaciones_pendientes and _AFIRMATIVO.match(mensaje):
+        items = _cotizaciones_pendientes.pop(numero_wa)
+        try:
+            excel_bytes = generar_excel_bytes(items)
+            media_id    = await _subir_media_wa(excel_bytes, "cotizacion_cisge.xlsx")
+            await _enviar_doc_wa(numero_wa, media_id, "cotizacion_cisge.xlsx")
+            respuesta = "Listo, te envie el Excel con los codigos CISGE para cargar al ERP."
+        except Exception as e:
+            logger.warning(f"Excel send error [{numero_wa}]: {e}")
+            respuesta = "Hubo un problema generando el Excel. Intenta de nuevo."
+        guardar_mensajes(numero_wa, mensaje, respuesta)
+        return respuesta
 
     # ── Pre-check: intención de marcas → GPT directo ──────────────────────────
     if _INTENT_MARCAS.search(mensaje):
@@ -271,6 +296,38 @@ def _elegir_fila_por_prioridad(resultados, cantidad: int):
     return resultados.loc[stocks.idxmax()]
 
 
+def _buscar_fila_imagen(parsed: dict, cantidad: int):
+    """Busca y selecciona la fila óptima para un ítem de imagen. Devuelve pd.Series o None."""
+    tipo       = parsed.get("tipo") or None
+    medida     = parsed.get("medida") or None
+    medidas    = parsed.get("medidas") or []
+    marca      = parsed.get("marca") or None
+    presion    = parsed.get("presion") or None
+    angulo     = parsed.get("angulo") or None
+    cola       = parsed.get("cola") or None
+    doble_hex  = bool(parsed.get("doble_hex"))
+    ferrula_tm = parsed.get("ferrula_tm") or ""
+    subfamilias = _validar_subfamilias(parsed.get("subfamilias") or [])
+
+    if not any([tipo, medida, marca, subfamilias]):
+        return None
+
+    resultados = buscar_por_tipo_medida_marca(
+        tipo=tipo, medida=medida, marca=marca, presion=presion,
+        subfamilias=subfamilias, medidas=medidas or None,
+        angulo=angulo, cola=cola, doble_hex=doble_hex, ferrula_tm=ferrula_tm,
+    )
+    if resultados.empty:
+        return None
+    if len(resultados) == 1:
+        return resultados.iloc[0]
+    subfamilia = resultados.iloc[0]["subfamilia"]
+    if subfamilia in _MARCA_PRIORIDAD_IMAGEN:
+        return _elegir_fila_por_prioridad(resultados, cantidad)
+    stocks = resultados.apply(_stock_total, axis=1)
+    return resultados.loc[stocks.idxmax()]
+
+
 def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     """E3: llama a buscar_por_tipo_medida_marca() con campos del parser."""
     tipo        = parsed.get("tipo") or None
@@ -383,6 +440,7 @@ async def _llamar_gpt(messages: list) -> str:
 # ── Procesamiento de imágenes WhatsApp ────────────────────────────────────────
 
 _WA_TOKEN = os.getenv("WHATSAPP_TOKEN")
+_PHONE_ID = os.getenv("PHONE_NUMBER_ID")
 
 _OCR_PROMPT = """\
 Eres un extractor de texto de imágenes para CISGE, distribuidora industrial peruana.
@@ -457,14 +515,26 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         return "No pude interpretar la lista. Escríbela directamente."
 
     # Paso 6 — E3 local para cada ítem
-    partes = []
+    partes       = []
+    items_excel  = []
     for i, parsed in enumerate(parsed_list, start=1):
         linea_orig = parsed.get("linea_original", "?")
         cantidad   = int(parsed.get("cantidad", 1))
-        resultado  = _buscar_con_parsed(parsed, imagen_cantidad=cantidad)
-        if resultado:
-            # Resultado puede ser ficha, multi-marca o lista — etiquetar con número
+        fila = _buscar_fila_imagen(parsed, cantidad)
+        if fila is not None:
+            resultado = formatear_resultado(fila, cantidad)
             partes.append(f"{i}️⃣ *{linea_orig}* (x{cantidad})\n{resultado}")
+            precio_u = float(fila["precio"])
+            subtotal = round(precio_u * cantidad, 2)
+            items_excel.append({
+                "codigo":     fila["codigo"],
+                "descripcion": fila["descripcion"].title(),
+                "cantidad":   cantidad,
+                "precio_unit": precio_u,
+                "subtotal":   subtotal,
+                "igv":        round(subtotal * IGV, 2),
+                "total":      round(subtotal * (1 + IGV), 2),
+            })
         else:
             partes.append(f"{i}️⃣ ❌ _{linea_orig}_")
 
@@ -472,7 +542,11 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     if not respuesta_final:
         respuesta_final = "No encontré ningún producto en la imagen."
 
-    # Paso 7 — guardar como un solo intercambio
+    # Paso 7 — guardar items para Excel y ofrecer descarga
+    if items_excel:
+        _cotizaciones_pendientes[numero_wa] = items_excel
+        respuesta_final += "\n\n¿Quieres que te envíe el Excel con los códigos CISGE para cargar al ERP?"
+
     guardar_mensajes(numero_wa, f"[imagen: {len(parsed_list)} ítems]", respuesta_final)
     return respuesta_final
 
@@ -531,3 +605,87 @@ async def _parsear_lineas_imagen(texto: str) -> list[dict]:
     raw = re.sub(r'\s*```$', '', raw)
     resultado = json.loads(raw)
     return [l for l in resultado if isinstance(l, dict)]
+
+
+# ── Excel ─────────────────────────────────────────────────────────────────────
+
+def generar_excel_bytes(items: list[dict]) -> bytes:
+    """Genera un .xlsx en memoria con la cotización. items: lista de dicts con claves
+    codigo, descripcion, cantidad, precio_unit, subtotal, igv, total."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, numbers
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Cotizacion CISGE"
+
+    headers = ["Código CISGE", "Descripción", "Cantidad",
+               "Precio Unit. USD", "Subtotal USD", "IGV (18%)", "Total USD"]
+    ws.append(headers)
+
+    fill   = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    bold_w = Font(color="FFFFFF", bold=True)
+    center = Alignment(horizontal="center")
+    for cell in ws[1]:
+        cell.fill      = fill
+        cell.font      = bold_w
+        cell.alignment = center
+
+    num_fmt = '#,##0.00'
+    for item in items:
+        row = ws.max_row + 1
+        ws.append([
+            item["codigo"],
+            item["descripcion"],
+            item["cantidad"],
+            item["precio_unit"],
+            item["subtotal"],
+            item["igv"],
+            item["total"],
+        ])
+        for col in range(4, 8):       # columnas D-G: precios
+            ws.cell(row=row, column=col).number_format = num_fmt
+
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 45
+    ws.column_dimensions["C"].width = 12
+    for col in ("D", "E", "F", "G"):
+        ws.column_dimensions[col].width = 17
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+async def _subir_media_wa(data: bytes, filename: str, mime: str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") -> str:
+    """Sube un archivo al endpoint de media de Meta y devuelve el media_id."""
+    url     = f"https://graph.facebook.com/v19.0/{_PHONE_ID}/media"
+    headers = {"Authorization": f"Bearer {_WA_TOKEN}"}
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            url,
+            headers=headers,
+            files={"file": (filename, data, mime)},
+            data={"messaging_product": "whatsapp"},
+            timeout=30,
+        )
+        r.raise_for_status()
+        media_id = r.json()["id"]
+        logger.info(f"_subir_media_wa: subido {filename} → media_id={media_id}")
+        return media_id
+
+
+async def _enviar_doc_wa(numero: str, media_id: str, filename: str) -> None:
+    """Envía un mensaje de tipo documento por WhatsApp."""
+    url     = f"https://graph.facebook.com/v19.0/{_PHONE_ID}/messages"
+    headers = {"Authorization": f"Bearer {_WA_TOKEN}", "Content-Type": "application/json"}
+    body    = {
+        "messaging_product": "whatsapp",
+        "to":   numero,
+        "type": "document",
+        "document": {"id": media_id, "filename": filename},
+    }
+    async with httpx.AsyncClient() as client:
+        r = await client.post(url, json=body, headers=headers, timeout=10)
+        logger.info(f"_enviar_doc_wa: {r.status_code} → {numero}")
