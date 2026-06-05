@@ -64,7 +64,7 @@ Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 04→1/4 | 06→3/8 | 08→1/2 | 12→3/4 | 16→1 | 20→1 1/4 | 24→1 1/2 — Ej: "JIC16"=1", "NPT08"=1/2".
 Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | codo+SAE = FERRULA (OCR confunde "casco" con "codo")
+Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
 Si es_saludo es true, deja todos los demás campos vacíos.
 Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
 IMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."""
@@ -386,13 +386,13 @@ _WA_TOKEN = os.getenv("WHATSAPP_TOKEN")
 
 _OCR_PROMPT = """\
 Eres un extractor de texto de imágenes para CISGE, distribuidora industrial peruana.
-Tu único trabajo es extraer el texto de la imagen lo más fiel posible, sin interpretar ni reformatear.
+Extrae el texto de la imagen. Para palabras de escritura ambigua o difícil de leer, elige el término más probable del vocabulario del dominio.
 Devuelve SOLO JSON: {"texto_extraido": "..."}
 Si la imagen no contiene una lista de productos o texto legible, devuelve: {"texto_extraido": ""}
 
-Contexto: lista de pedido de accesorios hidráulicos en Perú. Ante escritura ambigua, prioriza estos términos frecuentes:
-  casco, ferrula, espiga, adaptador, codo, niple, union, valvula, manguera, rollo, liso, larga.
-Pista clave: "casco" (ferrula) siempre aparece junto a tipos SAE como R1, R2, R12 — si un término ambiguo va seguido de R1/R2/R12, es casi siempre "casco", no "codo"."""
+Vocabulario frecuente (úsalo para resolver ambigüedad en escritura a mano):
+  casco, ferrula, espiga, adaptador, codo, niple, union, valvula, manguera, rollo, liso, larga, reduccion, tapon, brida, prearmada.
+Ejemplo: una palabra que podría leerse "casco" o "codo" — si va seguida de R1/R2/R12, es "casco" (los cascos llevan subtipo SAE, los codos no)."""
 
 
 async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
@@ -484,7 +484,6 @@ Recibirás texto OCR de una lista de productos. Para cada ítem con cantidad, ex
 Aliases (normaliza siempre):
 forx/orx/orfs = ORFS | bssp = BSP (typo de bsp) | bspp = BSPP | bspt = BSPT | jic = JIC | npt = NPT
 casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
-codo seguido de subtipo SAE (R1/R2/R12/etc.) = FERRULA (OCR confunde "casco" con "codo"; los codos reales no tienen subtipo SAE)
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
 "FERRULAS", "MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES", "VALVULAS",
