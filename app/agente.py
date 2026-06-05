@@ -223,7 +223,39 @@ async def _parsear(mensaje: str, historial: list) -> dict:
         return {"es_saludo": False}
 
 
-def _buscar_con_parsed(parsed: dict) -> str:
+# Prioridad de marca por subfamilia para respuestas de imagen
+_MARCA_PRIORIDAD_IMAGEN: dict[str, list[str]] = {
+    "ESPIGAS I":      ["LT", "XY"],
+    "ESPIGAS II":     ["LT", "XY"],
+    "BRIDAS":         ["XY", "LT"],
+    "FERRULAS":       ["LT", "XY"],
+    "ADAPTADORES I":  ["DME"],
+    "ADAPTADORES II": ["DME"],
+}
+
+
+def _elegir_fila_por_prioridad(resultados, cantidad: int):
+    """Elige una sola fila según prioridad de marca y stock suficiente."""
+    from app.motor import _stock_total
+    subfamilia = resultados.iloc[0]["subfamilia"]
+    prioridad  = _MARCA_PRIORIDAD_IMAGEN.get(subfamilia, [])
+
+    # 1. Marca prioritaria con stock >= cantidad pedida
+    for marca in prioridad:
+        filas = resultados[resultados["marca"].str.upper() == marca.upper()]
+        if not filas.empty and _stock_total(filas.iloc[0]) >= cantidad:
+            return filas.iloc[0]
+    # 2. Marca prioritaria sin importar stock
+    for marca in prioridad:
+        filas = resultados[resultados["marca"].str.upper() == marca.upper()]
+        if not filas.empty:
+            return filas.iloc[0]
+    # 3. Cualquier marca con mayor stock
+    stocks = resultados.apply(_stock_total, axis=1)
+    return resultados.loc[stocks.idxmax()]
+
+
+def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     """E3: llama a buscar_por_tipo_medida_marca() con campos del parser."""
     tipo        = parsed.get("tipo") or None
     medida      = parsed.get("medida") or None
@@ -260,7 +292,16 @@ def _buscar_con_parsed(parsed: dict) -> str:
         return ""
 
     if len(resultados) == 1:
-        return formatear_resultado(resultados.iloc[0])
+        cant = imagen_cantidad or 1
+        return formatear_resultado(resultados.iloc[0], cant)
+
+    # Modo imagen: subfamilias con prioridad de marca → mostrar solo 1 resultado
+    if imagen_cantidad is not None:
+        subfamilia = resultados.iloc[0]["subfamilia"]
+        if subfamilia in _MARCA_PRIORIDAD_IMAGEN:
+            fila = _elegir_fila_por_prioridad(resultados, imagen_cantidad)
+            logger.info(f"E3 imagen: seleccionado {fila['codigo']} — {fila['marca']}")
+            return formatear_resultado(fila, imagen_cantidad)
 
     if resultados["codigo"].nunique() == 1:
         return formatear_multi_marca(resultados)
@@ -399,7 +440,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     for i, parsed in enumerate(parsed_list, start=1):
         linea_orig = parsed.get("linea_original", "?")
         cantidad   = int(parsed.get("cantidad", 1))
-        resultado  = _buscar_con_parsed(parsed)
+        resultado  = _buscar_con_parsed(parsed, imagen_cantidad=cantidad)
         if resultado:
             # Resultado puede ser ficha, multi-marca o lista — etiquetar con número
             partes.append(f"{i}️⃣ *{linea_orig}* (x{cantidad})\n{resultado}")
