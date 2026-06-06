@@ -116,7 +116,8 @@ async def _procesar_mensaje(data: dict):
             logger.info(f"Tipo de mensaje ignorado: {tipo}")
             respuesta = "Solo proceso mensajes de texto e imágenes de listas de productos. Para consultas escríbeme directamente."
 
-        await enviar_whatsapp(numero, respuesta)
+        if respuesta:
+            await enviar_whatsapp(numero, respuesta)
     except Exception as e:
         logger.error(f"Error en _procesar_mensaje: {e}", exc_info=True)
 

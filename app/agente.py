@@ -518,52 +518,48 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         guardar_mensajes(numero_wa, "[imagen]", "No pude interpretar la lista. Escríbela directamente.")
         return "No pude interpretar la lista. Escríbela directamente."
 
-    # Paso 6 — E3 local para cada ítem
-    partes      = []
-    items_excel = []
-    for i, parsed in enumerate(parsed_list, start=1):
+    # Paso 6 — E3 local para cada ítem; construir filas Excel con todo en orden
+    rows_excel = []
+    for parsed in parsed_list:
         linea_orig = parsed.get("linea_original", "?")
         cantidad   = int(parsed.get("cantidad", 1))
-        resultado  = _buscar_con_parsed(parsed, imagen_cantidad=cantidad)
-        if resultado:
-            partes.append(f"{i}️⃣ *{linea_orig}* (x{cantidad})\n{resultado}")
-            # Captura de datos para Excel — best effort, no afecta el flujo WhatsApp
-            try:
-                fila = _buscar_fila_imagen(parsed, cantidad)
-                if fila is not None:
-                    precio_u = float(fila["precio"])
-                    subtotal = round(precio_u * cantidad, 2)
-                    items_excel.append({
-                        "codigo":      fila["codigo"],
-                        "descripcion": fila["descripcion"].title(),
-                        "cantidad":    cantidad,
-                        "precio_unit": precio_u,
-                        "subtotal":    subtotal,
-                        "igv":         round(subtotal * IGV, 2),
-                        "total":       round(subtotal * (1 + IGV), 2),
-                    })
-            except Exception as exc:
-                logger.warning(f"Excel capture error '{linea_orig}': {exc}")
-        else:
-            partes.append(f"{i}️⃣ ❌ _{linea_orig}_")
-
-    respuesta_final = "\n\n─────\n\n".join(partes)
-    if not respuesta_final:
-        respuesta_final = "No encontré ningún producto en la imagen."
-
-    guardar_mensajes(numero_wa, f"[imagen: {len(parsed_list)} ítems]", respuesta_final)
-
-    # Paso 7 — enviar Excel directamente si hay items encontrados
-    if items_excel:
+        fila_motor = None
         try:
-            excel_bytes = generar_excel_bytes(items_excel)
-            media_id    = await _subir_media_wa(excel_bytes, "cotizacion_cisge.xlsx")
-            await _enviar_doc_wa(numero_wa, media_id, "cotizacion_cisge.xlsx")
-            logger.info(f"OCR [{numero_wa}]: Excel enviado ({len(items_excel)} items)")
+            if _buscar_con_parsed(parsed, imagen_cantidad=cantidad):
+                fila_motor = _buscar_fila_imagen(parsed, cantidad)
         except Exception as exc:
-            logger.warning(f"OCR [{numero_wa}]: Excel send error: {exc}")
+            logger.warning(f"Excel capture error '{linea_orig}': {exc}")
 
-    return respuesta_final
+        if fila_motor is not None:
+            precio_u = float(fila_motor["precio"])
+            subtotal = round(precio_u * cantidad, 2)
+            rows_excel.append({
+                "linea_original": linea_orig,
+                "codigo":         fila_motor["codigo"],
+                "descripcion":    fila_motor["descripcion"].title(),
+                "cantidad":       cantidad,
+                "precio_unit":    precio_u,
+                "subtotal":       subtotal,
+                "igv":            round(subtotal * IGV, 2),
+                "total":          round(subtotal * (1 + IGV), 2),
+                "encontrado":     True,
+            })
+        else:
+            rows_excel.append({"linea_original": linea_orig, "encontrado": False})
+
+    # Paso 7 — enviar solo Excel (texto OCR completo en orden: encontrados + no encontrados)
+    guardar_mensajes(numero_wa, f"[imagen: {len(parsed_list)} ítems]", "Excel enviado")
+    if not rows_excel:
+        return "No encontré ningún producto en la imagen."
+    try:
+        excel_bytes = generar_excel_bytes(rows_excel)
+        media_id    = await _subir_media_wa(excel_bytes, "cotizacion_cisge.xlsx")
+        await _enviar_doc_wa(numero_wa, media_id, "cotizacion_cisge.xlsx")
+        logger.info(f"OCR [{numero_wa}]: Excel enviado ({len(rows_excel)} filas)")
+        return ""
+    except Exception as exc:
+        logger.warning(f"OCR [{numero_wa}]: Excel send error: {exc}")
+        return "No pude enviar el Excel. Intenta de nuevo."
 
 
 _PARSEAR_LINEAS_PROMPT = f"""\
@@ -625,48 +621,59 @@ async def _parsear_lineas_imagen(texto: str) -> list[dict]:
 
 # ── Excel ─────────────────────────────────────────────────────────────────────
 
-def generar_excel_bytes(items: list[dict]) -> bytes:
-    """Genera un .xlsx en memoria con la cotización. items: lista de dicts con claves
-    codigo, descripcion, cantidad, precio_unit, subtotal, igv, total."""
+def generar_excel_bytes(rows: list[dict]) -> bytes:
+    """Genera un .xlsx en memoria. rows: lista ordenada de dicts con clave 'encontrado'.
+    Filas reconocidas incluyen codigo/descripcion/precio; no reconocidas solo linea_original."""
     import io
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, numbers
+    from openpyxl.styles import Font, PatternFill, Alignment
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Cotizacion CISGE"
 
-    headers = ["Código CISGE", "Descripción", "Cantidad",
+    headers = ["Línea Original", "Código CISGE", "Descripción", "Cantidad",
                "Precio Unit. USD", "Subtotal USD", "IGV (18%)", "Total USD"]
     ws.append(headers)
 
-    fill   = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
-    bold_w = Font(color="FFFFFF", bold=True)
-    center = Alignment(horizontal="center")
+    fill_header  = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    fill_nf      = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")  # amarillo claro
+    font_header  = Font(color="FFFFFF", bold=True)
+    font_nf      = Font(italic=True, color="999999")
+    center       = Alignment(horizontal="center")
+    num_fmt      = '#,##0.00'
+
     for cell in ws[1]:
-        cell.fill      = fill
-        cell.font      = bold_w
+        cell.fill = fill_header
+        cell.font = font_header
         cell.alignment = center
 
-    num_fmt = '#,##0.00'
-    for item in items:
-        row = ws.max_row + 1
-        ws.append([
-            item["codigo"],
-            item["descripcion"],
-            item["cantidad"],
-            item["precio_unit"],
-            item["subtotal"],
-            item["igv"],
-            item["total"],
-        ])
-        for col in range(4, 8):       # columnas D-G: precios
-            ws.cell(row=row, column=col).number_format = num_fmt
+    for item in rows:
+        row_num = ws.max_row + 1
+        if item.get("encontrado"):
+            ws.append([
+                item["linea_original"],
+                item["codigo"],
+                item["descripcion"],
+                item["cantidad"],
+                item["precio_unit"],
+                item["subtotal"],
+                item["igv"],
+                item["total"],
+            ])
+            for col in range(5, 9):   # columnas E-H: precios
+                ws.cell(row=row_num, column=col).number_format = num_fmt
+        else:
+            ws.append([item["linea_original"], None, None, None, None, None, None, None])
+            for col in range(1, 9):
+                ws.cell(row=row_num, column=col).fill = fill_nf
+                ws.cell(row=row_num, column=col).font = font_nf
 
-    ws.column_dimensions["A"].width = 20
-    ws.column_dimensions["B"].width = 45
-    ws.column_dimensions["C"].width = 12
-    for col in ("D", "E", "F", "G"):
+    ws.column_dimensions["A"].width = 35
+    ws.column_dimensions["B"].width = 20
+    ws.column_dimensions["C"].width = 40
+    ws.column_dimensions["D"].width = 12
+    for col in ("E", "F", "G", "H"):
         ws.column_dimensions[col].width = 17
 
     buf = io.BytesIO()
