@@ -488,7 +488,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
                     }}
                 ]},
             ],
-            max_tokens=1000,
+            max_tokens=4096,
             temperature=0,
         )
         raw = completion.choices[0].message.content.strip()
