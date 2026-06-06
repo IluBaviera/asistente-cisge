@@ -26,6 +26,20 @@ logger = logging.getLogger(__name__)
 _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 _MODEL  = "gpt-4.1-mini"
 
+# Corrección OCR: "codo" + tipo SAE en la misma línea → "casco" (los codos no llevan subtipo SAE)
+_RE_CODO    = re.compile(r'\bcodo\b', re.IGNORECASE)
+_RE_SAE     = re.compile(r'\bR\d{1,2}(T/M|T)?\b', re.IGNORECASE)
+
+
+def _corregir_codo_ocr(texto: str) -> str:
+    lineas = []
+    for linea in texto.splitlines():
+        if _RE_CODO.search(linea) and _RE_SAE.search(linea):
+            linea = _RE_CODO.sub('casco', linea)
+        lineas.append(linea)
+    return '\n'.join(lineas)
+
+
 # Respuestas afirmativas que activan el envío de Excel pendiente
 _AFIRMATIVO = re.compile(
     r'^\s*(s[ií]|ok|dale|env[íi]a(lo)?|m[aá]ndalo|listo|claro|por\s+favor|perfecto|va|bueno)\s*[.!]?\s*$',
@@ -504,6 +518,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         return "No pude leer texto en la imagen. ¿Puedes enviar una foto más clara o escribir la lista directamente?"
 
     # Paso 5 — GPT parsea el texto OCR a campos estructurados (tipo/medida/marca/cantidad)
+    texto = _corregir_codo_ocr(texto)
     n_brutas = len([l for l in texto.splitlines() if l.strip()])
     logger.info(f"OCR [{numero_wa}]: {n_brutas} líneas brutas extraídas")
     try:
