@@ -40,6 +40,17 @@ def _corregir_codo_ocr(texto: str) -> str:
     return '\n'.join(lineas)
 
 
+def _enriquecer_tipo_ferrula(parsed_list: list[dict]) -> list[dict]:
+    """Si el parser devolvió tipo='FERRULA' sin subtipo SAE pero la línea original
+    contiene R1/R2/R12/etc., inyecta el subtipo para que el motor filtre correctamente."""
+    for item in parsed_list:
+        if item.get("tipo", "").upper() == "FERRULA":
+            m = _RE_SAE.search(item.get("linea_original", ""))
+            if m:
+                item["tipo"] = f"FERRULA {m.group(0).upper()}"
+    return parsed_list
+
+
 # Respuestas afirmativas que activan el envío de Excel pendiente
 _AFIRMATIVO = re.compile(
     r'^\s*(s[ií]|ok|dale|env[íi]a(lo)?|m[aá]ndalo|listo|claro|por\s+favor|perfecto|va|bueno)\s*[.!]?\s*$',
@@ -523,6 +534,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     logger.info(f"OCR [{numero_wa}]: {n_brutas} líneas brutas extraídas")
     try:
         parsed_list = await _parsear_lineas_imagen(texto)
+        parsed_list = _enriquecer_tipo_ferrula(parsed_list)
         logger.info(f"OCR [{numero_wa}]: {len(parsed_list)} ítems parseados")
     except Exception as e:
         logger.warning(f"_parsear_lineas_imagen error: {e}")
@@ -578,6 +590,7 @@ Recibirás texto OCR de una lista de productos. Para cada ítem con cantidad, ex
 Aliases (normaliza siempre):
 forx/orx/orfs = ORFS | bssp = BSP (typo de bsp) | bspp = BSPP | bspt = BSPT | jic = JIC | npt = NPT
 casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
+Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un R1/R2/R12 en la línea.
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
 "FERRULAS", "MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES", "VALVULAS",
