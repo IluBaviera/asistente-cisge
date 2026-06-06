@@ -51,15 +51,6 @@ def _enriquecer_tipo_ferrula(parsed_list: list[dict]) -> list[dict]:
     return parsed_list
 
 
-# Respuestas afirmativas que activan el envío de Excel pendiente
-_AFIRMATIVO = re.compile(
-    r'^\s*(s[ií]|ok|dale|env[íi]a(lo)?|m[aá]ndalo|listo|claro|por\s+favor|perfecto|va|bueno)\s*[.!]?\s*$',
-    re.IGNORECASE,
-)
-
-# Cache en memoria: última cotización de imagen lista para exportar a Excel
-_cotizaciones_pendientes: dict[str, list[dict]] = {}
-
 # Preguntas de intención sobre marcas → GPT directo (antes de cualquier búsqueda)
 _INTENT_MARCAS = re.compile(
     r'\b(qu[eé]\s+marcas?|en\s+qu[eé]\s+marcas?|qu[eé]\s+marca\s+tiene|'
@@ -147,20 +138,6 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     logger.info(f"agente [{numero_wa}]: historial={len(historial)} msgs | "
                 + " | ".join(f"{m['role']}:{m['content'][:40]!r}" for m in historial)
                 if historial else f"agente [{numero_wa}]: historial vacío")
-
-    # ── Pre-check: Excel pendiente ────────────────────────────────────────────
-    if numero_wa in _cotizaciones_pendientes and _AFIRMATIVO.match(mensaje):
-        items = _cotizaciones_pendientes.pop(numero_wa)
-        try:
-            excel_bytes = generar_excel_bytes(items)
-            media_id    = await _subir_media_wa(excel_bytes, "cotizacion_cisge.xlsx")
-            await _enviar_doc_wa(numero_wa, media_id, "cotizacion_cisge.xlsx")
-            respuesta = "Listo, te envie el Excel con los codigos CISGE para cargar al ERP."
-        except Exception as e:
-            logger.warning(f"Excel send error [{numero_wa}]: {e}")
-            respuesta = "Hubo un problema generando el Excel. Intenta de nuevo."
-        guardar_mensajes(numero_wa, mensaje, respuesta)
-        return respuesta
 
     # ── Pre-check: intención de marcas → GPT directo ──────────────────────────
     if _INTENT_MARCAS.search(mensaje):
@@ -574,12 +551,18 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     if not respuesta_final:
         respuesta_final = "No encontré ningún producto en la imagen."
 
-    # Paso 7 — guardar items para Excel y ofrecer descarga
-    if items_excel:
-        _cotizaciones_pendientes[numero_wa] = items_excel
-        respuesta_final += "\n\n¿Quieres que te envíe el Excel con los códigos CISGE para cargar al ERP?"
-
     guardar_mensajes(numero_wa, f"[imagen: {len(parsed_list)} ítems]", respuesta_final)
+
+    # Paso 7 — enviar Excel directamente si hay items encontrados
+    if items_excel:
+        try:
+            excel_bytes = generar_excel_bytes(items_excel)
+            media_id    = await _subir_media_wa(excel_bytes, "cotizacion_cisge.xlsx")
+            await _enviar_doc_wa(numero_wa, media_id, "cotizacion_cisge.xlsx")
+            logger.info(f"OCR [{numero_wa}]: Excel enviado ({len(items_excel)} items)")
+        except Exception as exc:
+            logger.warning(f"OCR [{numero_wa}]: Excel send error: {exc}")
+
     return respuesta_final
 
 
