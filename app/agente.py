@@ -492,13 +492,18 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
             temperature=0,
         )
         raw = completion.choices[0].message.content.strip()
-        # Limpiar bloques markdown que GPT suele agregar alrededor del JSON
+        logger.info(f"OCR [{numero_wa}]: raw GPT response: {raw[:200]!r}")
+        # Limpiar bloques markdown
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
         raw = re.sub(r'\s*```$', '', raw)
-        ocr = json.loads(raw)
+        # Extracción robusta: buscar el primer objeto JSON en la respuesta
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not m:
+            raise ValueError(f"No JSON object found in OCR response: {raw[:100]!r}")
+        ocr = json.loads(m.group(0))
         texto = ocr.get("texto_extraido", "").strip()
     except Exception as e:
-        logger.warning(f"OCR error: {e}")
+        logger.warning(f"OCR error [{numero_wa}]: {type(e).__name__}: {e}")
         return "Hubo un problema leyendo la imagen. Intenta de nuevo o escribe la lista directamente."
 
     # Paso 4 — imagen sin texto legible
