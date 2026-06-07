@@ -485,17 +485,11 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
             ],
             max_tokens=4096,
             temperature=0,
+            response_format={"type": "json_object"},
         )
         raw = completion.choices[0].message.content.strip()
         logger.info(f"OCR [{numero_wa}]: raw GPT response: {raw[:200]!r}")
-        # Limpiar bloques markdown
-        raw = re.sub(r'^```(?:json)?\s*', '', raw)
-        raw = re.sub(r'\s*```$', '', raw)
-        # Extracción robusta: buscar el primer objeto JSON en la respuesta
-        m = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not m:
-            raise ValueError(f"No JSON object found in OCR response: {raw[:100]!r}")
-        ocr = json.loads(m.group(0))
+        ocr = json.loads(raw)
         texto = ocr.get("texto_extraido", "").strip()
     except Exception as e:
         logger.warning(f"OCR error [{numero_wa}]: {type(e).__name__}: {e}")
@@ -578,8 +572,9 @@ Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES I
 "FERRULAS", "MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES", "VALVULAS",
 "NIPLES", "CAMLOCK", "BRIDAS", "TUBERIAS HIDRAULICAS", "PREARMADAS", "MANOMETROS"
 
-Devuelve SOLO un JSON array. Cada elemento:
+Devuelve SOLO un objeto JSON con campo "items" que contiene el array. Cada elemento:
 {{"linea_original":"texto como aparece","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
+Formato: {{"items": [{{...}}, {{...}}]}}
 
 TABLA DE MEDIDAS NOMINALES (código 2 dígitos pegado al tipo → pulgadas):
 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2
@@ -614,11 +609,10 @@ async def _parsear_lineas_imagen(texto: str) -> list[dict]:
             {"role": "user",   "content": texto},
         ],
         temperature=0,
+        response_format={"type": "json_object"},
     )
     raw = completion.choices[0].message.content.strip()
-    raw = re.sub(r'^```(?:json)?\s*', '', raw)
-    raw = re.sub(r'\s*```$', '', raw)
-    resultado = json.loads(raw)
+    resultado = json.loads(raw).get("items", [])
     return [l for l in resultado if isinstance(l, dict)]
 
 
