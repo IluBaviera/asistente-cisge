@@ -560,12 +560,13 @@ _PARSEAR_LINEAS_PROMPT = f"""\
 Eres un parser para CISGE, distribuidora peruana de mangueras hidráulicas.
 Recibirás texto OCR de una lista de productos. Para cada ítem con cantidad, extrae campos estructurados.
 
-Vocabulario cerrado — ante incertidumbre del OCR, elige el término más cercano fonética y visualmente:
+Vocabulario cerrado — usa EXACTAMENTE estos términos, sin expandir a nombre completo ni sinónimos:
 Tipos de rosca: JIC | ORFS | BSP | BSPP | BSPT | NPT | SAE | METRIC | LIVIANA | PESADA | KOMATSU
 Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CASCO | REDUCCION | TAPON
+Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
-Aliases (sinónimos y abreviaciones conocidas):
-casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
+Aliases (sinónimos, abreviaciones y errores OCR conocidos):
+ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
 Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un R1/R2/R12 en la línea.
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
