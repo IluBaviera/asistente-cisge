@@ -569,7 +569,9 @@ luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESAD
 
 Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son tipos de rosca, NO marcas):
 - tipo debe incluir "MM": "ESPIGA HEMBRA MM LIVIANA", "ESPIGA MACHO MM LIVIANA", "ESPIGA HEMBRA MM PESADA", etc.
-- La medida métrica (M12, M14, M18...) va en el campo medida. NO ponerla en marca.
+- medida debe quedar VACÍO ("") — M12, M14, 1.5 son datos del hilo métrico, no del sistema de medidas del catálogo.
+- angulo: si hay 90 o 45 al final, extraerlo normalmente.
+- NO poner M12/M14 en marca.
 Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un R1/R2/R12 en la línea.
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
