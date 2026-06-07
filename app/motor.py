@@ -391,10 +391,12 @@ logger.info(f"Aliases de marcas cargados: {len(_aliases_marcas)} entradas")
 
 
 async def refresh_stock_loop():
-    """Refresca la caché de la API y los aliases de marcas cada 10 minutos."""
+    """Refresca la caché de la API y los aliases de marcas cada 10 minutos.
+    Si df arrancó vacío (API caída al inicio), reintenta cada 30 s hasta cargar."""
     global _api_data, df, _aliases_marcas
     while True:
-        await asyncio.sleep(600)
+        espera = 30 if df.empty else 600
+        await asyncio.sleep(espera)
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.get(API_URL, timeout=30)
