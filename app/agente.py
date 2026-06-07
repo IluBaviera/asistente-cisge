@@ -442,6 +442,7 @@ _PHONE_ID = os.getenv("PHONE_NUMBER_ID")
 _OCR_PROMPT = """\
 Eres un extractor de texto de imágenes para CISGE, distribuidora industrial peruana.
 Extrae el texto de la imagen línea por línea, tal como aparece escrito.
+IMPORTANTE: Debes extraer ABSOLUTAMENTE TODAS las líneas del pedido, de arriba a abajo, sin omitir ninguna aunque la escritura sea difícil de leer. No te detengas hasta haber procesado hasta la última línea visible.
 Para palabras de escritura ambigua o difícil de leer, elige el término más probable del vocabulario del dominio.
 Si la imagen no contiene texto legible, responde exactamente: SIN_TEXTO
 
@@ -563,8 +564,12 @@ Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CA
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
-ores/o-rings/o-ring = ORFS | luvana/luvata/luvat = LIVIANA | pessao/pesao/pesada = PESADA
-casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
+ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
+luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA
+
+Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son tipos de rosca, NO marcas):
+- tipo debe incluir "MM": "ESPIGA HEMBRA MM LIVIANA", "ESPIGA MACHO MM LIVIANA", "ESPIGA HEMBRA MM PESADA", etc.
+- La medida métrica (M12, M14, M18...) va en el campo medida. NO ponerla en marca.
 Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un R1/R2/R12 en la línea.
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
