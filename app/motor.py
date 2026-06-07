@@ -268,7 +268,7 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
     """
     _COLS = ["codigo", "codigo_interno", "descripcion", "marca",
              "precio", "unidad", "almacenes", "subfamilia", "grupo",
-             "tipo_cod", "medida_cod"]
+             "tipo_cod", "medida_cod", "medidas_cod"]
     _EMPTY = pd.DataFrame(columns=_COLS)
     productos = data.get("productos", [])
     if not productos:
