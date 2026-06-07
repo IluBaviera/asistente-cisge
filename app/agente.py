@@ -441,9 +441,9 @@ _PHONE_ID = os.getenv("PHONE_NUMBER_ID")
 
 _OCR_PROMPT = """\
 Eres un extractor de texto de imágenes para CISGE, distribuidora industrial peruana.
-Extrae el texto de la imagen. Para palabras de escritura ambigua o difícil de leer, elige el término más probable del vocabulario del dominio.
-Devuelve SOLO JSON: {"texto_extraido": "..."}
-Si la imagen no contiene una lista de productos o texto legible, devuelve: {"texto_extraido": ""}
+Extrae el texto de la imagen línea por línea, tal como aparece escrito.
+Para palabras de escritura ambigua o difícil de leer, elige el término más probable del vocabulario del dominio.
+Si la imagen no contiene texto legible, responde exactamente: SIN_TEXTO
 
 Vocabulario frecuente (úsalo para resolver ambigüedad en escritura a mano):
   casco, ferrula, espiga, adaptador, codo, niple, union, valvula, manguera, rollo, liso, larga, reduccion, tapon, brida, prearmada.
@@ -471,7 +471,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         image_b64 = base64.b64encode(r2.content).decode()
         mime = r2.headers.get("content-type", "image/jpeg").split(";")[0]
 
-    # Paso 3 — OCR con GPT-4o Vision
+    # Paso 3 — OCR con GPT-4o Vision (texto plano, sin JSON)
     try:
         completion = await _client.chat.completions.create(
             model="gpt-4o",
@@ -485,18 +485,15 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
             ],
             max_tokens=4096,
             temperature=0,
-            response_format={"type": "json_object"},
         )
-        raw = completion.choices[0].message.content.strip()
-        logger.info(f"OCR [{numero_wa}]: raw GPT response: {raw[:200]!r}")
-        ocr = json.loads(raw)
-        texto = ocr.get("texto_extraido", "").strip()
+        texto = completion.choices[0].message.content.strip()
+        logger.info(f"OCR [{numero_wa}]: texto extraído ({len(texto)} chars): {texto[:200]!r}")
     except Exception as e:
         logger.warning(f"OCR error [{numero_wa}]: {type(e).__name__}: {e}")
         return "Hubo un problema leyendo la imagen. Intenta de nuevo o escribe la lista directamente."
 
     # Paso 4 — imagen sin texto legible
-    if not texto:
+    if not texto or texto == "SIN_TEXTO":
         return "No pude leer texto en la imagen. ¿Puedes enviar una foto más clara o escribir la lista directamente?"
 
     # Paso 5 — GPT parsea el texto OCR a campos estructurados (tipo/medida/marca/cantidad)
