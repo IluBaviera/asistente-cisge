@@ -566,7 +566,8 @@ Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CA
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
-ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
+ores/o-rings/o-ring = ORFS | luvana/luvata/luvat = LIVIANA | pessao/pesao/pesada = PESADA
+casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
 Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un R1/R2/R12 en la línea.
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
@@ -630,7 +631,7 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
     ws = wb.active
     ws.title = "Cotizacion CISGE"
 
-    headers = ["Línea Original", "Código CISGE", "Descripción", "Cantidad",
+    headers = ["N°", "Línea Original", "Código CISGE", "Descripción", "Cantidad",
                "Precio Unit. USD", "Subtotal USD", "IGV (18%)", "Total USD"]
     ws.append(headers)
 
@@ -646,10 +647,11 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
         cell.font = font_header
         cell.alignment = center
 
-    for item in rows:
+    for n, item in enumerate(rows, start=1):
         row_num = ws.max_row + 1
         if item.get("encontrado"):
             ws.append([
+                n,
                 item["linea_original"],
                 item["codigo"],
                 item["descripcion"],
@@ -659,19 +661,22 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
                 item["igv"],
                 item["total"],
             ])
-            for col in range(5, 9):   # columnas E-H: precios
+            ws.cell(row=row_num, column=1).alignment = center
+            for col in range(6, 10):   # columnas F-I: precios
                 ws.cell(row=row_num, column=col).number_format = num_fmt
         else:
-            ws.append([item["linea_original"], None, None, None, None, None, None, None])
-            for col in range(1, 9):
+            ws.append([n, item["linea_original"], None, None, None, None, None, None, None])
+            for col in range(1, 10):
                 ws.cell(row=row_num, column=col).fill = fill_nf
                 ws.cell(row=row_num, column=col).font = font_nf
+            ws.cell(row=row_num, column=1).alignment = center
 
-    ws.column_dimensions["A"].width = 35
-    ws.column_dimensions["B"].width = 20
-    ws.column_dimensions["C"].width = 40
-    ws.column_dimensions["D"].width = 12
-    for col in ("E", "F", "G", "H"):
+    ws.column_dimensions["A"].width = 6
+    ws.column_dimensions["B"].width = 35
+    ws.column_dimensions["C"].width = 20
+    ws.column_dimensions["D"].width = 40
+    ws.column_dimensions["E"].width = 12
+    for col in ("F", "G", "H", "I"):
         ws.column_dimensions[col].width = 17
 
     buf = io.BytesIO()
