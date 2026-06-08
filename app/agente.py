@@ -448,6 +448,7 @@ Si la imagen no contiene texto legible, responde exactamente: SIN_TEXTO
 
 Vocabulario frecuente (úsalo para resolver ambigüedad en escritura a mano):
   casco, ferrula, espiga, adaptador, codo, niple, union, valvula, manguera, rollo, liso, larga, reduccion, tapon, brida, prearmada.
+Correcciones OCR conocidas: "benda"/"brenda"/"bnda" → "brida" | "ferula"/"ferulla" → "ferrula" | "espinga"/"espgia" → "espiga".
 Ejemplo: una palabra que podría leerse "casco" o "codo" — si va seguida de R1/R2/R12, es "casco" (los cascos llevan subtipo SAE, los codos no)."""
 
 
@@ -567,8 +568,14 @@ Aliases (sinónimos, abreviaciones y errores OCR conocidos):
 ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
 luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA
 C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Cat/cat/CAT = CAT
+benda/brend/bnda = BRIDA
 
 Bridas (tipo = "BRIDA CODE 61", "BRIDA CODE 62" o "BRIDA CAT"):
+- Si el texto contiene BRIDA o alias (benda/bnda) como familia, tipo = "BRIDA CODE 61" / "BRIDA CAT" etc. NUNCA "ESPIGA HEMBRA BRIDA ...".
+- CODE 61, CODE 62, CAT van SOLO en el tipo, NUNCA en marca. El campo marca queda vacío para bridas.
+- El prefijo "ESP." antes de BRIDA es ruido del vendedor — ignorarlo. "H" o "Hembra" antes de BRIDA también se ignoran.
+  Ej: "ESP. BRIDA C-61 3/4x3/4" → tipo="BRIDA CODE 61", medida="3/4", marca=""
+  Ej: "ESP. H Benda C-61 3/4x3/4" → tipo="BRIDA CODE 61", medida="3/4", marca=""
 - Notación NxM (ej: 1x1, 3/4x3/4, 1x1/2): medida = segundo número (tamaño de manguera). Ignorar el primero.
 - Si aparece un valor en mm intermedio (ej: 125mm, 150mm): ignorarlo — no va en ningún campo.
 - angulo: extraer normalmente si aparece 90° o 45°.
