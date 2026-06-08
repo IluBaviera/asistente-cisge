@@ -607,7 +607,7 @@ Reglas generales:
 - "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
 - Si una línea es encabezado sin cantidad (ej: "mang azul poliuretano"), úsala como contexto para las siguientes
 - Tipo: usa el nombre más descriptivo posible (ej: "ESPIGA HEMBRA ORFS", no solo "ESPIGA")
-- Si hay dos medidas separadas por x (ej: "3/8 x 3/8"), ponlas en medidas: ["3/8","3/8"] y deja medida vacío
+- Medidas separadas por x (ej: "1/4x1/4", "3/8x1/2", "1/4x1/4x1/4x45°"): tomar SOLO las dos primeras como medidas=["N","M"], ignorar terceras en adelante. El ángulo al final (x45°, x90°) va en angulo, no en medidas. Dejar medida vacío. Excepción: bridas siguen su propia regla NxM.
 - Si no hay cantidad explícita, usar 1
 - angulo: "45" si dice 45°, "90" si dice 90°, "" si no especifica (recta)
 - cola: "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2)"""
