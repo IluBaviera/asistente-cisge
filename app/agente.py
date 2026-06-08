@@ -3,6 +3,7 @@ import re
 import json
 import base64
 import logging
+import pathlib
 import httpx
 from openai import AsyncOpenAI
 from app.db import cargar_historial, guardar_mensajes
@@ -57,6 +58,51 @@ _INTENT_MARCAS = re.compile(
     r'\b(qu[eé]\s+marcas?|en\s+qu[eé]\s+marcas?|qu[eé]\s+marca\s+tiene|'
     r'qu[eé]\s+marca\s+tienen|en\s+cu[aá]les?\s+marcas?)\b', re.IGNORECASE
 )
+
+# Fichas técnicas almacenadas en app/data/fichas/{prefijo_3dig}.docx
+_FICHAS_DIR   = pathlib.Path(__file__).parent / "data" / "fichas"
+_INTENT_FICHA = re.compile(r'\bficha\b', re.IGNORECASE)
+_MIME_DOCX    = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+async def _enviar_ficha_wa(numero_wa: str, grupo: str) -> bool:
+    """Sube el .docx al Media API de WhatsApp y lo envía como documento.
+    Retorna True si se envió, False si el archivo no existe."""
+    archivo = _FICHAS_DIR / f"{grupo}.docx"
+    if not archivo.exists():
+        return False
+
+    token    = os.getenv("WHATSAPP_TOKEN")
+    phone_id = os.getenv("PHONE_NUMBER_ID")
+    headers  = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient() as client:
+        with open(archivo, "rb") as f:
+            r_upload = await client.post(
+                f"https://graph.facebook.com/v19.0/{phone_id}/media",
+                headers=headers,
+                data={"messaging_product": "whatsapp", "type": _MIME_DOCX},
+                files={"file": (archivo.name, f, _MIME_DOCX)},
+                timeout=30,
+            )
+        r_upload.raise_for_status()
+        media_id = r_upload.json()["id"]
+
+        await client.post(
+            f"https://graph.facebook.com/v19.0/{phone_id}/messages",
+            headers={**headers, "Content-Type": "application/json"},
+            json={
+                "messaging_product": "whatsapp",
+                "to": numero_wa,
+                "type": "document",
+                "document": {
+                    "id": media_id,
+                    "filename": f"ficha_tecnica_{grupo}.docx",
+                },
+            },
+            timeout=10,
+        )
+    return True
 
 # ── Prompt 1: parser interno ──────────────────────────────────────────────────
 _PARSER_PROMPT = """\
@@ -138,6 +184,38 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     if _INTENT_MARCAS.search(mensaje):
         logger.info(f"agente [{numero_wa}]: pregunta de marcas → GPT directo")
         respuesta = await _gpt_conversacional(mensaje, numero_wa)
+        guardar_mensajes(numero_wa, mensaje, respuesta)
+        return respuesta
+
+    # ── Pre-check: ficha técnica ──────────────────────────────────────────────
+    if _INTENT_FICHA.search(mensaje):
+        # Extraer prefijo de grupo: buscar código en el mensaje, tomar primeros 3 chars
+        texto_ft = re.sub(r'\b(ficha\s+t[eé]cnica|ficha\s+tecnica|ficha)\b', '', mensaje, flags=re.IGNORECASE).strip()
+        texto_ft = re.sub(r'\b(del?|de\s+la|para\s+el?|el|la)\b', '', texto_ft, flags=re.IGNORECASE).strip()
+        grupo = ""
+        if texto_ft:
+            r_ft = buscar_por_codigo(texto_ft)
+            if r_ft.empty:
+                r_ft = buscar_por_codigo_prefijo(texto_ft)
+            if not r_ft.empty:
+                grupo = r_ft.iloc[0]["codigo"][:3]
+        # Fallback: primer bloque de 3 dígitos en el mensaje original
+        if not grupo:
+            m_g = re.search(r'\b(\d{3})', mensaje)
+            if m_g:
+                grupo = m_g.group(1)
+        if grupo:
+            logger.info(f"agente [{numero_wa}]: ficha técnica → grupo {grupo}")
+            try:
+                enviado = await _enviar_ficha_wa(numero_wa, grupo)
+                if enviado:
+                    guardar_mensajes(numero_wa, mensaje, f"[ficha técnica grupo {grupo} enviada]")
+                    return ""
+            except Exception as e:
+                logger.error(f"agente [{numero_wa}]: error enviando ficha: {e}")
+            respuesta = f"No tengo ficha técnica cargada para el grupo {grupo} aún."
+        else:
+            respuesta = "¿De qué producto necesitas la ficha técnica? Indícame el código o nombre."
         guardar_mensajes(numero_wa, mensaje, respuesta)
         return respuesta
 
