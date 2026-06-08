@@ -93,6 +93,7 @@ asistente-cisge/
 | Merge OCR+parser (un solo GPT-4o) | Diferido | Mantener separados para poder comparar modelos OCR alternativos sin tocar el parser |
 | Truncación de historial | Diferido | Medir primero cuánto historial es óptimo antes de fijar el límite |
 | Historial lazy loading | **Implementado** | Solo se carga en E4 (GPT conversacional). E1/E2/E3 no hacen llamada a historial API |
+| Medidas métricas en medida_cod (Opción A) | Diferido | Actualmente MM LIVIANA/PESADA busca M12/M14 por descripción (Opción B). Opción A requeriría que `_extraer_medidas_lista` distinga cuándo un segmento de código (`-12-`) es hilo métrico vs tamaño de manguera (`12→3/4"`), lo cual depende de la familia de producto. Más preciso pero requiere refactorizar el extractor de medidas por familia. |
 
 ## Principio de bug fixing
 

@@ -652,6 +652,14 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["descripcion"].str.contains("corrugada", na=False, case=False)]
     elif superficie == "lisa":
         r = r[~r["descripcion"].str.contains("corrugada", na=False, case=False)]
+    # Hilo métrico MM LIVIANA / MM PESADA — M12/M14/M18 van en descripción, no en medida_cod
+    _es_metrica = tipo and re.search(r"MM\s+(LIVIANA|PESADA)", tipo.upper())
+    if _es_metrica and medida and re.match(r"^M\d+$", medida.strip().upper()):
+        r_metrica = r[r["descripcion"].str.contains(medida.strip(), na=False, case=False)]
+        if not r_metrica.empty:
+            r = r_metrica
+        medidas_aplicadas = True
+
     if medidas and not medidas_aplicadas:
         if len(medidas) == 1:
             r_med = r[r["medidas_cod"].apply(lambda m: medidas[0] in m)]
