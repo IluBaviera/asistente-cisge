@@ -574,6 +574,11 @@ Bridas (tipo = "BRIDA CODE 61", "BRIDA CODE 62" o "BRIDA CAT"):
 - angulo: extraer normalmente si aparece 90° o 45°.
 - cola: "R12" si dice "large" o R12, "" si no especifica (R2 por defecto).
 
+Espigas KOMATSU (tipo = "ESPIGA HEMBRA KOMATSU"):
+- Formato MNNxMEDIDA (ej: M24x5/8, M18x1/2): medida = parte DESPUÉS del x (tamaño de manguera: "5/8", "1/2"). El MNN es el hilo del puerto Komatsu — ignorarlo.
+- angulo: si no se especifica, usar "90" por defecto (los KOMATSU son codos 90°).
+- cola: "" por defecto (R2).
+
 Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son tipos de rosca, NO marcas):
 - tipo debe incluir "MM": "ESPIGA HEMBRA MM LIVIANA", "ESPIGA MACHO MM LIVIANA", "ESPIGA HEMBRA MM PESADA", etc.
 - medida: extraer solo el diámetro métrico principal en formato "M12", "M14", "M18", etc. Ignorar pitch (x1.5) y tamaño de manguera al final.
