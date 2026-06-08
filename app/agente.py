@@ -576,7 +576,8 @@ Bridas (tipo = "BRIDA CODE 61", "BRIDA CODE 62" o "BRIDA CAT"):
 
 Espigas KOMATSU (tipo = "ESPIGA HEMBRA KOMATSU"):
 - Formato MNNxMEDIDA (ej: M24x5/8, M18x1/2): medida = parte DESPUÉS del x (tamaño de manguera: "5/8", "1/2"). El MNN es el hilo del puerto Komatsu — ignorarlo.
-- angulo: si no se especifica, usar "90" por defecto (los KOMATSU son codos 90°).
+- angulo: extraer normalmente ("90" si dice 90°, "45" si dice 45°, "" si no especifica = recta).
+- doble_hex: true si dice "doble hex", "doble hexagono" o "DH". Por defecto false (estándar sin D).
 - cola: "" por defecto (R2).
 
 Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son tipos de rosca, NO marcas):

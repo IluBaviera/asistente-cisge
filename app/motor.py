@@ -623,6 +623,18 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r_sin_hex = r[~r["descripcion"].str.contains(r"c/hex|doble hex", na=False, case=False, regex=True)]
         if not r_sin_hex.empty:
             r = r_sin_hex
+    # KOMATSU: sufijo D en código = doble hexágono (no está en descripción, solo en código)
+    # Ej: 28691D-24-10 = doble hex, 28691-24-10 = estándar
+    if tipo and "KOMATSU" in tipo.upper():
+        patron_d = r["codigo"].str.match(r"\d+D-", na=False)
+        if doble_hex:
+            r_kd = r[patron_d]
+            if not r_kd.empty:
+                r = r_kd
+        else:
+            r_kstd = r[~patron_d]
+            if not r_kstd.empty:
+                r = r_kstd
     # Ferrula T/M: "si"=solo T/M, "no"=excluir T/M (lisa), ""=ambas
     if ferrula_tm == "si":
         r_tm = r[r["grupo"].str.contains(r"T/M", na=False, case=False)]
