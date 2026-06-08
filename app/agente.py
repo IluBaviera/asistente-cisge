@@ -19,6 +19,7 @@ from app.motor import (
     df as motor_df,
     IGV,
     _stock_total,
+    _aliases_marcas,
 )
 
 logger = logging.getLogger(__name__)
@@ -169,14 +170,34 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
                     logger.info(f"agente [{numero_wa}]: E2 VITILLO corregido → {alt}")
 
         # Fallback: si el texto tiene espacios, probar tokens numéricos como prefijo
-        # Ej: "Ferrula 03310" → probar "03310"
+        # Ej: "Ferrula 03310" → probar "03310" | "021-06-06 dme" → probar "021-06-06" + filtrar por DME
         if prefijo.empty and ' ' in texto_cod:
-            for token in texto_cod.split():
+            tokens = texto_cod.split()
+            for token in tokens:
                 if token[0].isdigit() and len(token) >= 3:
                     alt_tok = buscar_por_codigo_prefijo(token)
                     if not alt_tok.empty:
                         prefijo = alt_tok
                         logger.info(f"agente [{numero_wa}]: E2 token numérico → {token}")
+                        # Si hay tokens no-numéricos, buscar si alguno es una marca
+                        marcas_cat = set(motor_df["marca"].str.upper().dropna().unique())
+                        for otro in tokens:
+                            if otro == token:
+                                continue
+                            otro_up = otro.upper()
+                            if otro_up in marcas_cat:
+                                f = prefijo[prefijo["marca"].str.upper() == otro_up]
+                                if not f.empty:
+                                    prefijo = f
+                                    logger.info(f"agente [{numero_wa}]: E2 marca → {otro_up}")
+                                    break
+                            elif otro.lower() in _aliases_marcas:
+                                marca_real = _aliases_marcas[otro.lower()]
+                                f = prefijo[prefijo["marca"].str.upper() == marca_real]
+                                if not f.empty:
+                                    prefijo = f
+                                    logger.info(f"agente [{numero_wa}]: E2 alias marca {otro} → {marca_real}")
+                                    break
                         break
 
         if len(prefijo) == 1:
