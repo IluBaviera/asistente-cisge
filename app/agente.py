@@ -566,6 +566,7 @@ Si el OCR entregó una palabra incierta, elige el término más cercano de la li
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
 ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
+bssp/bsps/bbsp = BSP
 luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA
 C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Cat/cat/CAT = CAT
 benda/brend/bnda = BRIDA

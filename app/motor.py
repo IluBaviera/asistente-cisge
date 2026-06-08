@@ -583,6 +583,18 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             (r["grupo"].str.upper() == tipo_up) |
             r["grupo"].str.upper().str.startswith(tipo_up + " ", na=False)
         )
+        # BSP ↔ BSPP equivalencia: en CISGE son intercambiables
+        if "BSPP" in tipo_up:
+            tipo_alt = tipo_up.replace("BSPP", "BSP")
+        elif re.search(r"\bBSP\b", tipo_up):
+            tipo_alt = re.sub(r"\bBSP\b", "BSPP", tipo_up)
+        else:
+            tipo_alt = None
+        if tipo_alt:
+            mask_tipo = mask_tipo | (
+                (r["grupo"].str.upper() == tipo_alt) |
+                r["grupo"].str.upper().str.startswith(tipo_alt + " ", na=False)
+            )
         if mask_tipo.any():
             r = r[mask_tipo]
         else:
