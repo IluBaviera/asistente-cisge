@@ -566,6 +566,13 @@ Si el OCR entregó una palabra incierta, elige el término más cercano de la li
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
 ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
 luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA
+C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Cat/cat/CAT = CAT
+
+Bridas (tipo = "BRIDA CODE 61", "BRIDA CODE 62" o "BRIDA CAT"):
+- Notación NxM (ej: 1x1, 3/4x3/4, 1x1/2): medida = segundo número (tamaño de manguera). Ignorar el primero.
+- Si aparece un valor en mm intermedio (ej: 125mm, 150mm): ignorarlo — no va en ningún campo.
+- angulo: extraer normalmente si aparece 90° o 45°.
+- cola: "R12" si dice "large" o R12, "" si no especifica (R2 por defecto).
 
 Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son tipos de rosca, NO marcas):
 - tipo debe incluir "MM": "ESPIGA HEMBRA MM LIVIANA", "ESPIGA MACHO MM LIVIANA", "ESPIGA HEMBRA MM PESADA", etc.
