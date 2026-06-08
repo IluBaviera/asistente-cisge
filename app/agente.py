@@ -87,7 +87,7 @@ cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12
 doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/hex". Default false.
 ferrula_tm: solo para ferrulas — "si" si pide T/M/tipo manulli/manulli, "no" si pide lisa (sin T/M), "" si no especifica (mostrar ambas variantes).
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
-Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, lisa = sin T/M (ferrula_tm="no"), t/m/manulli/tipo manulli = ferrula_tm="si".
+Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, lisa = sin T/M (ferrula_tm="no"), t/m/manulli/tipo manulli = ferrula_tm="si".
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 04→1/4 | 06→3/8 | 08→1/2 | 12→3/4 | 16→1 | 20→1 1/4 | 24→1 1/2 — Ej: "JIC16"=1", "NPT08"=1/2".
 Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
@@ -592,7 +592,9 @@ Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son 
 - medida: extraer solo el diámetro métrico principal en formato "M12", "M14", "M18", etc. Ignorar pitch (x1.5) y tamaño de manguera al final.
 - angulo: si hay 90 o 45 al final, extraerlo normalmente.
 - NO poner M12/M14 en marca.
-Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un R1/R2/R12 en la línea.
+Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un subtipo en la línea.
+Aliases de subtipo ferrula: 4SH/4SP/4sh/4sp = R12 | 1SN/2SN/AT = R2 | R13/R15/INTERLOCK = R13-R15.
+4SH y 4SP NO van en marca — son el subtipo de la ferrula. Ej: "FERRULA 2\" 4SH" → tipo="FERRULA R12", medida="2", marca="".
 
 Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES II",
 "FERRULAS", "MANGUERAS HIDRAULICAS", "MANGUERAS INDUSTRIALES", "VALVULAS",
