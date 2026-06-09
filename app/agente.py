@@ -734,6 +734,7 @@ Formato: {{"items": [{{...}}, {{...}}]}}
 TABLA DE MEDIDAS NOMINALES (código 2 dígitos pegado al tipo → pulgadas):
 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2
 Ej: "JIC16" = JIC 1", "NPT08" = NPT 1/2", "ORFS12" = ORFS 3/4".
+IMPORTANTE: Respeta la medida EXACTA que aparece en el texto. Si dice "3/16", el campo medida/medidas debe ser "3/16". NO redondees al tamaño más cercano (ej: 3/16 ≠ 1/4). Si la medida no existe en catálogo, el sistema la detectará después.
 
 ESTRUCTURA TERMINAL-ESPIGA (dos medidas/tipos separados por "-"):
 Las espigas tienen dos lados: TERMINAL (manguera) y ESPIGA (rosca).
