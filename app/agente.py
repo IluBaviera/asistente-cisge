@@ -370,6 +370,15 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
 
     # ── GPT parser: lenguaje natural → campos estructurados ───────────────────
     parsed = await _parsear(mensaje)
+
+    # Post-proceso: si el parser no extrajo marca, escanear el mensaje contra _aliases_marcas
+    if not parsed.get("marca") and _aliases_marcas:
+        msg_lo = mensaje.lower()
+        for alias in sorted(_aliases_marcas, key=len, reverse=True):
+            if re.search(rf'\b{re.escape(alias)}\b', msg_lo):
+                parsed["marca"] = _aliases_marcas[alias]
+                break
+
     logger.info(f"agente [{numero_wa}]: parser → {parsed}")
 
     if parsed.get("es_saludo"):
