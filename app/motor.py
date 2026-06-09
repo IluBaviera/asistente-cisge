@@ -670,7 +670,18 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         )
         r = r[mascara_pres]
     if marca:
-        r = r[r["marca"].str.upper() == marca.upper()]
+        # Resolver alias antes de filtrar (ej: HYP → HYPERION, VITI → VITILLO)
+        marca_up = marca.upper().strip()
+        if _aliases_marcas:
+            marca_up = _aliases_marcas.get(marca_up.lower(), marca_up)
+        # Hardcoded aliases de respaldo
+        _hard = {"JDE": "JDEFLEX", "VITI": "VITILLO", "MACTU": "MACTUBI"}
+        marca_up = _hard.get(marca_up, marca_up)
+        r_marca = r[r["marca"].str.upper() == marca_up]
+        if not r_marca.empty:
+            r = r_marca
+        else:
+            return r_marca  # marca especificada pero no existe → vacío
     # Filtro de superficie: corrugada filtra por descripción; lisa excluye corrugadas
     if superficie == "corrugada":
         r = r[r["descripcion"].str.contains("corrugada", na=False, case=False)]
