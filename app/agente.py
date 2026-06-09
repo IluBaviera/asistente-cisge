@@ -209,6 +209,7 @@ Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 0
 Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
+ESPIGA NPT sin indicar macho/hembra → default MACHO: tipo="ESPIGA MACHO NPT". Solo para NPT; otros tipos mantienen HEMBRA por defecto.
 Si es_saludo es true, deja todos los demás campos vacíos.
 Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
 IMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."""
@@ -799,11 +800,13 @@ Las espigas tienen dos lados: TERMINAL (manguera) y ESPIGA (rosca).
 REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga"), es SIEMPRE ESPIGA — nunca ADAPTADOR.
 - Un solo tipo de rosca mencionado (o ninguno): es ESPIGA. El segundo lado hereda el mismo tipo; NO supongas JIC ni otro.
   Ej: "terminal JIC 16 - 12 Esp"  → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
-  Ej: "terminal NPT08 - 12 esp"   → tipo="ESPIGA HEMBRA NPT", medidas=["1/2","3/4"]  ← mismo tipo, distinto tamaño
+  Ej: "terminal NPT08 - 12 esp"   → tipo="ESPIGA MACHO NPT", medidas=["1/2","3/4"]  ← MACHO por defecto en NPT
   Ej: "terminal BSP12 - 08 esp"   → tipo="ESPIGA HEMBRA BSP", medidas=["3/4","1/2"]
   Ej: "JIC16-JIC12"               → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
 - Si NO se menciona ningún tipo de rosca, NO lo supongas: deja tipo="ESPIGA HEMBRA" sin especificar rosca.
   Ej: "terminal 08 - 12 esp"      → tipo="ESPIGA HEMBRA", medidas=["1/2","3/4"]
+- ESPIGA NPT sin indicar macho/hembra → default MACHO (las espigas NPT son macho por defecto).
+  Ej: "terminal NPT08 - 12 esp"   → tipo="ESPIGA MACHO NPT", medidas=["1/2","3/4"]  ← MACHO, no HEMBRA
 - Distintos tipos de rosca AMBOS explícitos (y sin "terminal"+"esp"): es ADAPTADOR
   Ej: "NPT08 - JIC16 90"          → tipo="ADAP MACHO NPT X HEMBRA JIC", medidas=["1/2","1"], angulo="90"
   Ej: "BSP12-ORFS08"              → tipo="ADAP MACHO BSP X HEMBRA ORFS", medidas=["3/4","1/2"]
