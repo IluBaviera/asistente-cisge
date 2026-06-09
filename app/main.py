@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from app.motor import consultar
 from app.motor import log_consultas
@@ -6,7 +7,9 @@ from app.motor import refresh_stock_loop
 from app.agente import agente_cisge, procesar_imagen_whatsapp
 import asyncio
 import httpx
+import json
 import os
+import pathlib
 import logging
 
 logger = logging.getLogger(__name__)
@@ -60,6 +63,23 @@ def ping():
 @app.get("/logs")
 def ver_logs():
     return log_consultas[-20:]
+
+@app.get("/demandas")
+def ver_demandas():
+    """Devuelve las demandas no encontradas en catálogo para análisis comercial."""
+    ruta = pathlib.Path(__file__).parent / "data" / "demandas_no_catalogo.jsonl"
+    if not ruta.exists():
+        return JSONResponse({"total": 0, "items": []})
+    items = []
+    with open(ruta, encoding="utf-8") as f:
+        for linea in f:
+            linea = linea.strip()
+            if linea:
+                try:
+                    items.append(json.loads(linea))
+                except Exception:
+                    pass
+    return JSONResponse({"total": len(items), "items": items})
 
 class Query(BaseModel):
     mensaje: str

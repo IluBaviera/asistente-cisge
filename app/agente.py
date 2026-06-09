@@ -64,6 +64,27 @@ _FICHAS_DIR   = pathlib.Path(__file__).parent / "data" / "fichas"
 _INTENT_FICHA = re.compile(r'\bficha\b', re.IGNORECASE)
 _MIME_DOCX    = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
+# Inteligencia comercial: demandas no encontradas en catálogo
+_DEMANDAS_FILE = pathlib.Path(__file__).parent / "data" / "demandas_no_catalogo.jsonl"
+
+
+def _registrar_demanda(tipo: str, medida: str, cantidad: int, linea_original: str, numero_wa: str) -> None:
+    """Registra un ítem no encontrado en catálogo para análisis comercial."""
+    import datetime
+    entrada = {
+        "fecha":          datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "tipo":           tipo or "",
+        "medida":         medida or "",
+        "cantidad":       cantidad,
+        "linea_original": linea_original,
+        "numero_wa":      numero_wa[-4:],  # solo últimos 4 dígitos por privacidad
+    }
+    try:
+        with open(_DEMANDAS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entrada, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.warning(f"_registrar_demanda: no se pudo escribir: {e}")
+
 
 async def _enviar_ficha_wa(numero_wa: str, grupo: str) -> bool:
     """Sube el .docx al Media API de WhatsApp y lo envía como documento.
@@ -135,7 +156,7 @@ doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/h
 ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOLO si el usuario dice explícitamente "lisa" o "00210".
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, t/m/manulli/tipo manulli = ferrula_tm="si" (default). lisa/00210 = ferrula_tm="no".
-Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 04→1/4 | 06→3/8 | 08→1/2 | 12→3/4 | 16→1 | 20→1 1/4 | 24→1 1/2 — Ej: "JIC16"=1", "NPT08"=1/2".
+Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
 Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
@@ -637,7 +658,12 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
                 "encontrado":     True,
             })
         else:
-            rows_excel.append({"linea_original": linea_orig, "encontrado": False})
+            tipo_p   = parsed.get("tipo") or ""
+            medida_p = parsed.get("medida") or (parsed.get("medidas") or [""])[0]
+            nota = "Tamaño no disponible en catálogo" if (tipo_p and medida_p) else "No encontrado en catálogo"
+            if tipo_p:
+                _registrar_demanda(tipo_p, medida_p, cantidad, linea_orig, numero_wa)
+            rows_excel.append({"linea_original": linea_orig, "nota": nota, "encontrado": False})
 
     # Paso 7 — enviar solo Excel (texto OCR completo en orden: encontrados + no encontrados)
     guardar_mensajes(numero_wa, f"[imagen: {len(parsed_list)} ítems]", "Excel enviado")
@@ -792,7 +818,8 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
             for col in range(6, 10):   # columnas F-I: precios
                 ws.cell(row=row_num, column=col).number_format = num_fmt
         else:
-            ws.append([n, item["linea_original"], None, None, None, None, None, None, None])
+            nota = item.get("nota", "No encontrado en catálogo")
+            ws.append([n, item["linea_original"], "—", nota, None, None, None, None, None])
             for col in range(1, 10):
                 ws.cell(row=row_num, column=col).fill = fill_nf
                 ws.cell(row=row_num, column=col).font = font_nf
