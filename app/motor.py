@@ -647,15 +647,15 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             r_kstd = r[~patron_d]
             if not r_kstd.empty:
                 r = r_kstd
-    # Ferrula T/M: "si"=solo T/M, "no"=excluir T/M (lisa), ""=ambas
-    if ferrula_tm == "si":
-        r_tm = r[r["grupo"].str.contains(r"T/M", na=False, case=False)]
-        if not r_tm.empty:
-            r = r_tm
-    elif ferrula_tm == "no":
+    # Ferrula T/M: "no"=lisa (excluir T/M); "si" o ""=T/M por defecto
+    if ferrula_tm == "no":
         r_lisa = r[~r["grupo"].str.contains(r"T/M", na=False, case=False)]
         if not r_lisa.empty:
             r = r_lisa
+    else:
+        r_tm = r[r["grupo"].str.contains(r"T/M", na=False, case=False)]
+        if not r_tm.empty:
+            r = r_tm
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if subtipo and subtipo in ("1SN", "2SN"):
