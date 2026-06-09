@@ -384,6 +384,23 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
         guardar_mensajes(numero_wa, mensaje, respuesta_e3)
         return respuesta_e3
 
+    # Si E3 falló pero se especificó marca + tipo/medida → respuesta directa, no ir a E4
+    # (evita que E4 reformule la búsqueda sin marca y devuelva resultados de otras marcas)
+    if parsed.get("marca") and (parsed.get("tipo") or parsed.get("medida") or parsed.get("medidas")):
+        tipo_p   = parsed.get("tipo") or ""
+        marca_p  = parsed["marca"].upper()
+        medida_p = parsed.get("medida") or (parsed.get("medidas") or [None])[0]
+        partes = []
+        if tipo_p:
+            partes.append(f"*{tipo_p}*")
+        if medida_p:
+            partes.append(f"*{medida_p}\"*")
+        desc = " en ".join(partes) if partes else "ese producto"
+        respuesta = f"No tenemos {desc} en marca *{marca_p}*."
+        logger.info(f"agente [{numero_wa}]: E3 sin resultado con marca {marca_p} → respuesta directa")
+        guardar_mensajes(numero_wa, mensaje, respuesta)
+        return respuesta
+
     # ── E4: GPT conversacional con tools ──────────────────────────────────────
     logger.info(f"agente [{numero_wa}]: E4 GPT conversacional")
     respuesta = await _gpt_conversacional(mensaje, numero_wa)

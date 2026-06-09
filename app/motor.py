@@ -1100,6 +1100,13 @@ def consultar(texto: str) -> tuple:
                 "\n\n_Ejemplo: R1 1/2 Negro QF_"
             )
 
+    # Si se especificó marca y no hubo resultados, no buscar por descripción
+    # (evita devolver productos de otras marcas)
+    if marca and 'resultados' in locals() and resultados.empty:
+        tipo_display = tipo or "ese producto"
+        medida_display = f" en *{medida}*" if medida else ""
+        return None, f"No encontré *{tipo_display}*{medida_display} en marca *{marca.upper()}*."
+
     # ── Estrategia 4: palabras clave en descripción ───────────────────────────
     palabras = [p for p in texto_sin_cant.lower().split() if len(p) > 2
                 and p not in PALABRAS_IGNORADAS]
