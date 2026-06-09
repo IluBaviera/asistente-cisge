@@ -687,12 +687,16 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     if medidas and not medidas_aplicadas:
         if len(medidas) == 1:
             r_med = r[r["medidas_cod"].apply(lambda m: medidas[0] in m)]
+            if not r_med.empty:
+                r = r_med
+                medidas_aplicadas = True
         else:
             r_med = r[r["medidas_cod"].apply(lambda m: m == medidas)]
-        if not r_med.empty:
-            r = r_med
-            medidas_aplicadas = True
-        # si el filtro por lista devuelve 0, cae al filtro simple de medida
+            if not r_med.empty:
+                r = r_med
+                medidas_aplicadas = True
+            else:
+                return r_med  # medidas explícitas sin match → vacío, no fallthrough
 
     if medida and not medidas_aplicadas:
         medida_norm = medida.upper().strip().rstrip('"').strip()
