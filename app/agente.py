@@ -21,6 +21,7 @@ from app.motor import (
     IGV,
     _stock_total,
     _aliases_marcas,
+    MEDIDA_NOMINAL,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,45 @@ def _enriquecer_tipo_ferrula(parsed_list: list[dict]) -> list[dict]:
             m = _RE_SAE.search(item.get("linea_original", ""))
             if m:
                 item["tipo"] = f"FERRULA {m.group(0).upper()}"
+    return parsed_list
+
+
+# Conjunto de medidas hidráulicas conocidas (valores de MEDIDA_NOMINAL)
+_MEDIDAS_CONOCIDAS    = set(MEDIDA_NOMINAL.values())
+_RE_FRACCION_MEDIDA   = re.compile(r'\b\d+\s+\d+/\d+\b|\b\d+/\d+\b')
+
+
+def _extraer_fracciones_medida(texto: str) -> list[str]:
+    """Extrae fracciones de pulgada conocidas del texto, en orden de aparición."""
+    return [m.strip() for m in _RE_FRACCION_MEDIDA.findall(texto)
+            if m.strip() in _MEDIDAS_CONOCIDAS]
+
+
+def _corregir_medidas_ocr(parsed_list: list[dict]) -> list[dict]:
+    """Corrección determinista: si GPT redondeó medidas, las restaura desde linea_original.
+    Compara posición a posición las fracciones del texto original vs las emitidas por el parser."""
+    for item in parsed_list:
+        fracs_orig = _extraer_fracciones_medida(item.get("linea_original", ""))
+        if not fracs_orig:
+            continue
+
+        medidas_gpt = [m.strip() for m in (item.get("medidas") or []) if m.strip()]
+        medida_gpt  = (item.get("medida") or "").strip()
+
+        if medidas_gpt:
+            corregidas = list(medidas_gpt)
+            for i, gpt_val in enumerate(medidas_gpt):
+                if i < len(fracs_orig) and gpt_val != fracs_orig[i] and gpt_val in _MEDIDAS_CONOCIDAS:
+                    corregidas[i] = fracs_orig[i]
+            if corregidas != medidas_gpt:
+                item["medidas"] = corregidas
+                item["medida"] = ""
+                logger.info(f"_corregir_medidas_ocr: {medidas_gpt} → {corregidas}")
+        elif medida_gpt and medida_gpt in _MEDIDAS_CONOCIDAS:
+            if fracs_orig[0] != medida_gpt:
+                logger.info(f"_corregir_medidas_ocr: medida {medida_gpt!r} → {fracs_orig[0]!r}")
+                item["medida"] = fracs_orig[0]
+
     return parsed_list
 
 
@@ -625,6 +665,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     try:
         parsed_list = await _parsear_lineas_imagen(texto)
         parsed_list = _enriquecer_tipo_ferrula(parsed_list)
+        parsed_list = _corregir_medidas_ocr(parsed_list)
         logger.info(f"OCR [{numero_wa}]: {len(parsed_list)} ítems parseados")
     except Exception as e:
         logger.warning(f"_parsear_lineas_imagen error: {e}")
