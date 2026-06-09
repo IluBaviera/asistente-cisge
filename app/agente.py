@@ -108,22 +108,31 @@ _MIME_DOCX    = "application/vnd.openxmlformats-officedocument.wordprocessingml.
 _DEMANDAS_FILE = pathlib.Path(__file__).parent / "data" / "demandas_no_catalogo.jsonl"
 
 
-def _registrar_demanda(tipo: str, medida: str, cantidad: int, linea_original: str, numero_wa: str) -> None:
-    """Registra un ítem no encontrado en catálogo para análisis comercial."""
+def _registrar_demanda(tipo: str, medida: str, cantidad: int, linea_original: str, numero_wa: str, motivo: str = "tamaño") -> None:
+    """Registra un ítem no encontrado en catálogo para análisis comercial.
+    motivo: 'tamaño' = grupo existe pero no esa medida | 'producto' = grupo no existe."""
     import datetime
     entrada = {
         "fecha":          datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "motivo":         motivo,
         "tipo":           tipo or "",
         "medida":         medida or "",
         "cantidad":       cantidad,
         "linea_original": linea_original,
-        "numero_wa":      numero_wa[-4:],  # solo últimos 4 dígitos por privacidad
+        "numero_wa":      numero_wa[-4:],
     }
     try:
         with open(_DEMANDAS_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entrada, ensure_ascii=False) + "\n")
     except Exception as e:
         logger.warning(f"_registrar_demanda: no se pudo escribir: {e}")
+
+
+def _tipo_existe_en_catalogo(tipo: str) -> bool:
+    """Verifica si el tipo/grupo de producto existe en catálogo (sin filtrar por medida)."""
+    if not tipo:
+        return False
+    return not buscar_por_tipo_medida_marca(tipo=tipo).empty
 
 
 async def _enviar_ficha_wa(numero_wa: str, grupo: str) -> bool:
@@ -701,9 +710,17 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         else:
             tipo_p   = parsed.get("tipo") or ""
             medida_p = parsed.get("medida") or (parsed.get("medidas") or [""])[0]
-            nota = "Tamaño no disponible en catálogo" if (tipo_p and medida_p) else "No encontrado en catálogo"
+            if tipo_p and _tipo_existe_en_catalogo(tipo_p):
+                nota   = "Tamaño no disponible en catálogo"
+                motivo = "tamaño"
+            elif tipo_p:
+                nota   = "Producto no existe en el catálogo"
+                motivo = "producto"
+            else:
+                nota   = "No reconocido en catálogo"
+                motivo = "producto"
             if tipo_p:
-                _registrar_demanda(tipo_p, medida_p, cantidad, linea_orig, numero_wa)
+                _registrar_demanda(tipo_p, medida_p, cantidad, linea_orig, numero_wa, motivo)
             rows_excel.append({"linea_original": linea_orig, "nota": nota, "encontrado": False})
 
     # Paso 7 — enviar solo Excel (texto OCR completo en orden: encontrados + no encontrados)
@@ -779,12 +796,17 @@ IMPORTANTE: Respeta la medida EXACTA que aparece en el texto. Si dice "3/16", el
 
 ESTRUCTURA TERMINAL-ESPIGA (dos medidas/tipos separados por "-"):
 Las espigas tienen dos lados: TERMINAL (manguera) y ESPIGA (rosca).
-- Mismo tipo de rosca: es ESPIGA → medidas=[medida_terminal, medida_espiga], deja medida vacío
-  Ej: "terminal JIC 16 - 12 Esp" → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
-  Ej: "JIC16-JIC12" → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
-- Distintos tipos de rosca: es ADAPTADOR → tipo="ADAP MACHO X1 X HEMBRA X2"
-  Ej: "NPT08 - JIC16 90" → tipo="ADAP MACHO NPT X HEMBRA JIC", medidas=["1/2","1"], angulo="90"
-  Ej: "BSP12-ORFS08" → tipo="ADAP MACHO BSP X HEMBRA ORFS", medidas=["3/4","1/2"]
+REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga"), es SIEMPRE ESPIGA — nunca ADAPTADOR.
+- Un solo tipo de rosca mencionado (o ninguno): es ESPIGA. El segundo lado hereda el mismo tipo; NO supongas JIC ni otro.
+  Ej: "terminal JIC 16 - 12 Esp"  → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
+  Ej: "terminal NPT08 - 12 esp"   → tipo="ESPIGA HEMBRA NPT", medidas=["1/2","3/4"]  ← mismo tipo, distinto tamaño
+  Ej: "terminal BSP12 - 08 esp"   → tipo="ESPIGA HEMBRA BSP", medidas=["3/4","1/2"]
+  Ej: "JIC16-JIC12"               → tipo="ESPIGA HEMBRA JIC", medidas=["1","3/4"]
+- Si NO se menciona ningún tipo de rosca, NO lo supongas: deja tipo="ESPIGA HEMBRA" sin especificar rosca.
+  Ej: "terminal 08 - 12 esp"      → tipo="ESPIGA HEMBRA", medidas=["1/2","3/4"]
+- Distintos tipos de rosca AMBOS explícitos (y sin "terminal"+"esp"): es ADAPTADOR
+  Ej: "NPT08 - JIC16 90"          → tipo="ADAP MACHO NPT X HEMBRA JIC", medidas=["1/2","1"], angulo="90"
+  Ej: "BSP12-ORFS08"              → tipo="ADAP MACHO BSP X HEMBRA ORFS", medidas=["3/4","1/2"]
   Convención: primer tipo=MACHO, segundo tipo=HEMBRA. Número suelto al final (45/90)=angulo.
 
 Reglas generales:
