@@ -907,6 +907,109 @@ def interpretar_linea(texto: str) -> tuple:
     logger.debug(f"interpretar_linea → marca={marca} tipo={tipo} medida={medida} medidas={medidas} color={color} cant={cantidad} presion={presion} linea={linea} superficie={superficie} subfamilias={subfamilias_detectadas}")
     return marca, tipo, medida, medidas, color, cantidad, presion, linea, superficie, subfamilias_detectadas
 
+# ─── BÚSQUEDA POR TEXTO LIBRE (sin E1/E2/descripción) ────────────────────────
+
+def buscar_texto_libre(texto: str, cantidad: int = 1, descuento: float = 0.0) -> str:
+    """interpretar_linea → buscar_por_tipo_medida_marca. Devuelve string formateado o ''."""
+    marca, tipo, medida, medidas, color, _, presion, linea, superficie, subfamilias = interpretar_linea(texto)
+
+    t_lo = texto.lower()
+
+    # Campos no cubiertos por interpretar_linea
+    ferrula_tm = "no" if re.search(r'\b(lisa|00210)\b', t_lo) else ""
+    angulo_val = "90" if re.search(r'\b90°?\b', t_lo) else ("45" if re.search(r'\b45°?\b', t_lo) else None)
+    cola_val   = ("R12"       if re.search(r'\b(cola\s*r12|c/?r12|larg[ao])\b', t_lo) else
+                  "INTERLOCK"  if re.search(r'\binterlock\b', t_lo) else None)
+    doble_hex  = bool(re.search(r'doble\s*hex|c/hex', t_lo))
+
+    # Líneas exclusivas → forzar marca
+    if linea == "exact":
+        marca = "JDEFLEX"
+    if tipo == "TSER" and not marca:
+        marca = "VITILLO"
+
+    # HT + R1/R2 subtipo SAE
+    sae_subtipo = None
+    if tipo == "HT":
+        if re.search(r'\br1\b', t_lo):
+            sae_subtipo = r'r1at|1sn'
+        elif re.search(r'\br2\b', t_lo):
+            sae_subtipo = r'r2at|2sn'
+
+    if not any([tipo, medida, marca, subfamilias]):
+        return ""
+
+    medida_busq = medida
+    epdm = "EPDM" if re.search(r'\bepdm\b', t_lo) else ""
+    if color and medida:
+        base = f'{medida}" {color}' if not medida.endswith('"') else f'{medida} {color}'
+        medida_busq = f'{base} {epdm}'.strip() if epdm and epdm not in base else base
+
+    subtipo_ht = color if tipo == "HT" else None
+    resultados = buscar_por_tipo_medida_marca(
+        tipo, medida_busq, marca, presion, linea, subtipo_ht, superficie, subfamilias,
+        medidas or None, angulo_val, cola_val, doble_hex, ferrula_tm,
+    )
+    if sae_subtipo and not resultados.empty:
+        resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
+
+    if resultados.empty and color and medida:
+        resultados = buscar_por_tipo_medida_marca(
+            tipo, medida, marca, presion, linea, subtipo_ht, superficie, subfamilias,
+            medidas or None, angulo_val, cola_val, doble_hex, ferrula_tm,
+        )
+        if sae_subtipo and not resultados.empty:
+            resultados = resultados[resultados["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
+
+    # tipo+medida sin resultado → mostrar alternativas del tipo
+    if resultados.empty and tipo and medida:
+        resultados_tipo = buscar_por_tipo_medida_marca(
+            tipo, None, marca, presion, linea, subtipo_ht, superficie, subfamilias,
+        )
+        if sae_subtipo and not resultados_tipo.empty:
+            resultados_tipo = resultados_tipo[resultados_tipo["descripcion"].str.contains(sae_subtipo, na=False, case=False)]
+        if not resultados_tipo.empty:
+            meds = sorted(resultados_tipo["medida_cod"].dropna().str.rstrip('"').str.strip().unique())
+            meds_str = ", ".join(meds)
+            medida_display = medida.rstrip('"').strip()
+            if len(resultados_tipo) <= 12:
+                return (
+                    f"No hay *{tipo}* en *{medida_display}\"*.\n\n"
+                    + formatear_lista(resultados_tipo, "Opciones disponibles:")
+                )
+            return (
+                f"No hay *{tipo}* en *{medida_display}\"*.\n\n"
+                f"📐 Medidas disponibles: {meds_str}\n\n"
+                "¿Cuál necesitas?"
+            )
+
+    if resultados.empty:
+        return ""
+
+    if len(resultados) == 1:
+        return formatear_resultado(resultados.iloc[0], cantidad, descuento)
+    if resultados["codigo"].nunique() == 1:
+        return formatear_multi_marca(resultados)
+    if len(resultados) <= 12:
+        return formatear_lista(resultados, f"Encontré {len(resultados)} opciones:")
+
+    marcas_u = resultados["marca"].unique()
+    meds_u   = resultados["medida_cod"].dropna().unique()[:8]
+    detalle  = []
+    if not marca:
+        detalle.append(f"🏷️ Marca: {', '.join(marcas_u)}")
+    if not medida:
+        detalle.append(f"📐 Medida: {', '.join(meds_u)}")
+    if not color and resultados["subfamilia"].str.contains("MANGUERA", na=False).any():
+        detalle.append("🎨 Color: Amarillo (A), Negro (N), Rojo (R)")
+    return (
+        f"Encontré *{len(resultados)} productos* para *{tipo or 'ese tipo'}*.\n\n"
+        "¿Puedes especificar?\n\n" +
+        "\n".join(detalle) +
+        "\n\n_Ejemplo: R1 1/2 Negro QF_"
+    )
+
+
 # ─── CONSULTA SIMPLE ──────────────────────────────────────────────────────────
 
 def consultar(texto: str) -> tuple:

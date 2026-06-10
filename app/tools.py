@@ -1,6 +1,6 @@
 import logging
 import httpx
-from app.motor import consultar, cotizar_multiple
+from app.motor import buscar_texto_libre, cotizar_multiple
 
 logger = logging.getLogger(__name__)
 
@@ -9,9 +9,9 @@ STOCK_API = "https://api.comercialcisgesac.com.pe/stock"
 
 def tool_buscar_producto(query: str) -> str:
     """Busca un producto por código, tipo+medida o descripción."""
-    logger.info(f"tool_buscar_producto → consultar({query!r})")
-    _, respuesta = consultar(query)
-    return respuesta
+    logger.info(f"tool_buscar_producto → buscar_texto_libre({query!r})")
+    resultado = buscar_texto_libre(query)
+    return resultado or "No encontré ese producto en el catálogo."
 
 
 def tool_ver_stock(codigo: str, almacen: str = None) -> str:

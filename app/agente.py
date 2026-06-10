@@ -12,6 +12,7 @@ from app.motor import (
     buscar_por_codigo,
     buscar_por_codigo_prefijo,
     buscar_por_tipo_medida_marca,
+    buscar_texto_libre,
     formatear_resultado,
     formatear_multi_marca,
     formatear_lista,
@@ -175,46 +176,7 @@ async def _enviar_ficha_wa(numero_wa: str, grupo: str) -> bool:
     return True
 
 # ── Prompt 1: parser interno ──────────────────────────────────────────────────
-_PARSER_PROMPT = """\
-Eres un parser de consultas comerciales para CISGE Perú.
-Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
-{
-  "subfamilias": [],
-  "tipo": "",
-  "medida": "",
-  "medidas": [],
-  "marca": "",
-  "color": "",
-  "presion": "",
-  "angulo": "",
-  "cola": "",
-  "doble_hex": false,
-  "ferrula_tm": "",
-  "es_saludo": false
-}
-subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
-tipo: tipo de producto exacto del catálogo. Si el usuario especificó subtipo (R1/R2/R12/etc.), inclúyelo (ej: "ESPIGA MACHO NPT R2"). Si no especificó, usa el prefijo base (ej: "ESPIGA MACHO NPT").
-medida: primera medida mencionada como fracción: 1/2, 3/4, 1, 1 1/4
-medidas: si el usuario menciona dos medidas separadas por "x" (ej: "3/8 x 3/8", "1/4 x 1/2"), extrae la lista ordenada: ["3/8", "3/8"]. Si hay una sola medida, dejar vacío [].
-marca: marca oficial: QF, JDEFLEX, VITILLO, MACTUBI, AF, LT, DME, etc.
-color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
-presion: si se menciona presión de trabajo
-angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). Aplica a espigas, adaptadores, bridas y prearmadas.
-cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
-doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/hex". Default false.
-ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOLO si el usuario dice explícitamente "lisa" o "00210".
-es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
-Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, t/m/manulli/tipo manulli = ferrula_tm="si" (default). lisa/00210 = ferrula_tm="no".
-Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
-Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
-Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT
-ESPIGA NPT sin indicar macho/hembra → default MACHO: tipo="ESPIGA MACHO NPT". Solo para NPT; otros tipos mantienen HEMBRA por defecto.
-Si es_saludo es true, deja todos los demás campos vacíos.
-Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
-IMPORTANTE: Analiza SOLO el mensaje actual del usuario. Ignora las respuestas previas del asistente."""
-
-# ── Prompt 2: asistente conversacional ───────────────────────────────────────
+# ── Prompt: asistente conversacional ─────────────────────────────────────────
 _AGENT_PROMPT = """\
 Eres Lutong, el asistente comercial de CISGE, distribuidora peruana de mangueras hidráulicas y accesorios. Atiendes vendedores por WhatsApp.
 PERSONALIDAD: Profesional, directo, respuestas cortas adaptadas a WhatsApp.
@@ -368,26 +330,8 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
             guardar_mensajes(numero_wa, mensaje, respuesta)
             return respuesta
 
-    # ── GPT parser: lenguaje natural → campos estructurados ───────────────────
-    parsed = await _parsear(mensaje)
-
-    # Post-proceso: si el parser no extrajo marca, escanear el mensaje contra _aliases_marcas
-    if not parsed.get("marca") and _aliases_marcas:
-        msg_lo = mensaje.lower()
-        for alias in sorted(_aliases_marcas, key=len, reverse=True):
-            if re.search(rf'\b{re.escape(alias)}\b', msg_lo):
-                parsed["marca"] = _aliases_marcas[alias]
-                break
-
-    logger.info(f"agente [{numero_wa}]: parser → {parsed}")
-
-    if parsed.get("es_saludo"):
-        respuesta = await _gpt_conversacional(mensaje, numero_wa)
-        guardar_mensajes(numero_wa, mensaje, respuesta)
-        return respuesta
-
-    # ── E3: buscar_por_tipo_medida_marca con campos del parser ────────────────
-    respuesta_e3 = _buscar_con_parsed(parsed)
+    # ── E3: interpretar_linea → motor (sin GPT) ───────────────────────────────
+    respuesta_e3 = buscar_texto_libre(texto_cod, cantidad, descuento)
     if respuesta_e3:
         logger.info(f"agente [{numero_wa}]: E3 encontró resultado")
         guardar_mensajes(numero_wa, mensaje, respuesta_e3)
@@ -400,16 +344,6 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     return respuesta
 
 
-def _grupos_disponibles() -> str:
-    grupos = sorted(motor_df["grupo"].dropna().unique().tolist())
-    return ", ".join(f'"{g}"' for g in grupos)
-
-
-def _subfamilias_disponibles() -> str:
-    subs = sorted(motor_df["subfamilia"].dropna().unique().tolist())
-    return ", ".join(f'"{s}"' for s in subs)
-
-
 _SUBFAMILIAS_VALIDAS: set = set()
 
 
@@ -419,24 +353,6 @@ def _validar_subfamilias(subfamilias: list) -> list | None:
         _SUBFAMILIAS_VALIDAS = set(motor_df["subfamilia"].dropna().unique())
     validas = [s for s in (subfamilias or []) if s in _SUBFAMILIAS_VALIDAS]
     return validas if validas else None
-
-
-async def _parsear(mensaje: str) -> dict:
-    """Parser interno: lenguaje natural → JSON estructurado. Sin tools."""
-    try:
-        prompt = (
-            _PARSER_PROMPT
-            + f"\n\nSubfamilias válidas (usa SOLO estas en el campo 'subfamilias'):\n{_subfamilias_disponibles()}"
-        )
-        messages = [{"role": "system", "content": prompt},
-                    {"role": "user", "content": mensaje}]
-        completion = await _client.chat.completions.create(
-            model=_MODEL, messages=messages, temperature=0,
-        )
-        return json.loads(completion.choices[0].message.content.strip())
-    except Exception as e:
-        logger.warning(f"_parsear error: {e}")
-        return {"es_saludo": False}
 
 
 # Prioridad de marca por subfamilia para respuestas de imagen
