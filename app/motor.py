@@ -845,6 +845,23 @@ def interpretar_linea(texto: str) -> tuple:
                 tipo = t
                 break
 
+    if not tipo:
+        # Fallback 4: coincidencia contra tipo base (grupo sin sufijo SAE).
+        # Permite "espiga hembra jic" → tipo "ESPIGA HEMBRA JIC" que luego
+        # hace prefijo-match con "ESPIGA HEMBRA JIC R2", "ESPIGA HEMBRA JIC R1", etc.
+        _SAE_TAIL = re.compile(r'\s+(R\d{1,2}[A-Z]?|INTERLOCK|TESTEO)$', re.IGNORECASE)
+        seen: set = set()
+        base_tipos: list = []
+        for g in grupos_bd:  # ya ordenados por longitud desc
+            base = _SAE_TAIL.sub('', g).strip().upper()
+            if base != g.upper() and len(base) >= 4 and base not in seen:
+                seen.add(base)
+                base_tipos.append(base)
+        for base in sorted(base_tipos, key=len, reverse=True):
+            if re.search(rf'\b{re.escape(base)}\b', texto_up):
+                tipo = base
+                break
+
     # ── Medidas múltiples (ej: 1/4 x 1/4, 1/2 x 3/4) ───────────────────────
     medidas = []
     texto_lo_norm = re.sub(r'(\d)\s*x\s*(\d)', r'\1 x \2', texto_lo)
