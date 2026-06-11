@@ -522,10 +522,13 @@ def formatear_lista(resultados: pd.DataFrame, titulo: str) -> str:
     """Lista de opciones — formato WhatsApp (sin bloques de código)."""
     resp = f"{titulo}\n\n"
     for _, fila in resultados.iterrows():
+        total = _stock_total(fila)
+        umed  = fila["unidad"]
+        stock_txt = f"🚫 AGOTADO" if total == 0 else f"📦 {total:,.0f} {umed}"
         resp += (
             f"• *{fila['codigo']}* — {fila['marca']}\n"
             f"  {fila['descripcion'].title()[:50]}\n"
-            f"  💰 ${float(fila['precio']):.2f}\n\n"
+            f"  💰 ${float(fila['precio']):.2f} | {stock_txt}\n\n"
         )
     resp += "¿Cuál necesitas? Escríbeme el código exacto 👍"
     return resp
