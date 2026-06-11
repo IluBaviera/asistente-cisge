@@ -87,6 +87,8 @@ MARCA_ALIAS = {
     "mactubi":      "MACTUBI",
     "hyp":          "HYP",
     "hypress":      "HYP",
+    "rubberflex":   "RUBBERFLEX",
+    "rubber":       "RUBBERFLEX",
 }
 
 # ─── ALIAS DE TIPO ────────────────────────────────────────────────────────────
@@ -178,6 +180,20 @@ TIPO_ALIAS = {
     "4spe":             "4SPE",
     "2sn":              "R2",   # alias común en campo
     "1sn":              "R1",   # alias común en campo
+    # Mangueras de silicona (RUBBERFLEX) — medidas en mm
+    "silicona corrugada":       "MANG SILICONA CORRUGADA",
+    "silicona reduccion":       "MANG SILICONA REDUCCIÓN",
+    "silicona reducción":       "MANG SILICONA REDUCCIÓN",
+    "silicona radiador":        "MANG SILICONA RADIADOR",
+    "silicona codo 90":         "MANG SILICONA CODO 90",
+    "silicona codo 45":         "MANG SILICONA CODO 45",
+    "silicona recta":           "MANG SILICONA RECTA",
+    "silicona codo":            "MANG SILICONA CODO",
+    'silicona j20':             "MANG SILICONA J20 R3",
+    "silicona u":               'MANG SILICONA EN "U" P/RADIADOR',
+    "silicona":                 "MANG SILICONA",
+    "poliuretano":              "MANG PU",
+    "pu":                       "MANG PU",
 }
 
 # Tipos SAE que pueden tener múltiples tipo_cod en BD
@@ -574,7 +590,8 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     r = df.copy()
     medidas_aplicadas = False
     # Insertar ángulo en el tipo antes del matching: "ESPIGA HEMBRA ORFS" + 90 → "ESPIGA 90° HEMBRA ORFS"
-    if angulo in ("45", "90") and tipo:
+    # Pero NO si el tipo ya lo contiene (ej: "MANG SILICONA CODO 90" desde TIPO_ALIAS)
+    if angulo in ("45", "90") and tipo and not re.search(rf'\b{angulo}\b', tipo.upper()):
         partes = tipo.split(" ", 1)
         tipo = partes[0] + f" {angulo}°" + (" " + partes[1] if len(partes) > 1 else "")
     if subfamilias:
@@ -719,6 +736,10 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
 
         # Para medida_cod con color sufijo: "1/2" R", "1/2" N", "1/2" A" (AF AIR, etc.)
         mascara = mascara | r["medida_cod"].str.upper().str.strip().str.startswith(medida_norm + '"')
+
+        # Para medida_cod compuesto: "38 38 X10L", "19 19 X 10L" (silicona codo/recta)
+        # Prefix match con espacio: "38" matchea "38 38 X10L"
+        mascara = mascara | r["medida_cod"].str.strip().str.startswith(medida_norm + " ", na=False)
 
         # Buscar también por nominal equivalente (JDE/HYP usan "08", QF usa "1/2"")
         nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
@@ -898,14 +919,26 @@ def interpretar_linea(texto: str) -> tuple:
         if m:
             medida = m.group(1)
 
+    # Medida en mm explícita: 19mm, 38mm, 102mm (mangueras silicona y similares)
+    if not medida:
+        m = re.search(r'\b(\d{2,3})\s*mm\b', texto_lo)
+        if m:
+            medida = m.group(1)
+            logger.debug(f"  mm explícito '{m.group(1)}mm' → medida '{medida}'")
+
     # Nominal de 2 dígitos: 08, 12, 16 (solo si parece nominal, no año u otro)
+    # Si está en MEDIDA_NOMINAL → convierte a fracción; si no (ej: 19mm silicona) → usa valor mm directo.
     # Excluir números seguidos de % (descuentos)
     if not medida:
         texto_sin_pct = re.sub(r'\d+\s*%', '', texto_lo)
         m = re.search(r'\b(0[2-9]|[1-6]\d)\b', texto_sin_pct)
-        if m and m.group(1) in MEDIDA_NOMINAL:
-            medida = MEDIDA_NOMINAL[m.group(1)]
-            logger.debug(f"  nominal '{m.group(1)}' → medida '{medida}'")
+        if m:
+            if m.group(1) in MEDIDA_NOMINAL:
+                medida = MEDIDA_NOMINAL[m.group(1)]
+                logger.debug(f"  nominal '{m.group(1)}' → medida '{medida}'")
+            else:
+                medida = m.group(1)  # medida mm directa (ej: silicona 19mm)
+                logger.debug(f"  mm directo '{m.group(1)}' → medida '{medida}'")
 
     # Entero solo (pulgadas sin símbolo): solo si hay contexto de tipo/marca/presion
     if not medida and (tipo or marca or presion):
