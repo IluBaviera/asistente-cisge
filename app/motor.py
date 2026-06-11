@@ -634,6 +634,11 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             elif tipo_up == "TSER":
                 mascara_tipo = r["tipo_cod"].str.upper().str.startswith("TSER", na=False)
             r = r[mascara_tipo]
+    # Silicona genérica sin ángulo → solo tipos rectos (excluir CODO 90 / CODO 45)
+    if tipo_up == "MANG SILICONA":
+        r_recta = r[~r["grupo"].str.contains(r'\bCODO\b', na=False, case=False, regex=True)]
+        if not r_recta.empty:
+            r = r_recta
     # Cola (R2/R12/INTERLOCK) — solo para espigas, bridas y prearmadas
     _es_accesorio = tipo and tipo.upper().split()[0] in ("ESPIGA", "BRIDA", "PREARMADA")
     if _es_accesorio:
@@ -933,11 +938,13 @@ def interpretar_linea(texto: str) -> tuple:
         texto_sin_pct = re.sub(r'\d+\s*%', '', texto_lo)
         m = re.search(r'\b(0[2-9]|[1-6]\d)\b', texto_sin_pct)
         if m:
-            if m.group(1) in MEDIDA_NOMINAL:
+            # Para tipos silicona/PU el número es mm directo, no código nominal
+            _es_silicona = tipo and re.search(r'silicona|mang pu', tipo, re.IGNORECASE)
+            if not _es_silicona and m.group(1) in MEDIDA_NOMINAL:
                 medida = MEDIDA_NOMINAL[m.group(1)]
                 logger.debug(f"  nominal '{m.group(1)}' → medida '{medida}'")
             else:
-                medida = m.group(1)  # medida mm directa (ej: silicona 19mm)
+                medida = m.group(1)  # mm directo
                 logger.debug(f"  mm directo '{m.group(1)}' → medida '{medida}'")
 
     # Entero solo (pulgadas sin símbolo): solo si hay contexto de tipo/marca/presion

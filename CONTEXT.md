@@ -50,6 +50,16 @@
 - **Ferrula T/M default**: `ferrula_tm=""` → aplica T/M; `ferrula_tm="no"` → solo lisa
 - **Guard descripción**: en `consultar()`, si hay marca especificada y E3 devolvió vacío → no cae a búsqueda por palabras clave (evita resultados de otras marcas)
 - **`buscar_texto_libre(texto, cantidad, descuento)`**: nueva función — `interpretar_linea()` + `buscar_por_tipo_medida_marca()` sin E1/E2/descripción. Usada por `tool_buscar_producto` en E4.
+- **Soporte mangueras silicona RUBBERFLEX**:
+  - TIPO_ALIAS: silicona recta/codo 90/codo 45/corrugada/radiador/J20/U/reduccion → grupos MANG SILICONA*
+  - MARCA_ALIAS: rubberflex/rubber → RUBBERFLEX
+  - Medida mm: extractor explícito `\b(\d{2,3})\s*mm\b` + fallback mm directo para nominales no-ISO
+  - Para tipos silicona/PU, el extractor nominal NO aplica MEDIDA_NOMINAL (16mm no se convierte a 1")
+  - `medida_cod` prefix match: "38" matchea "38 38 X10L" para grupos codo/recta silicona
+  - Silicona genérica sin ángulo (`tipo == "MANG SILICONA"`) → excluye CODO por defecto (recto implícito)
+  - Guard ángulo en `buscar_por_tipo_medida_marca`: no reinyectar ángulo si ya está en el nombre del tipo
+  - E3 `_PARSER_PROMPT` + `_buscar_con_parsed`: medida mm normalizada (GPT extrae "19", no "19mm")
+- **SAE base type fallback (tier 4)** en `interpretar_linea`: "espiga hembra jic" → tipo "ESPIGA HEMBRA JIC" que luego hace prefix-match con "ESPIGA HEMBRA JIC R2", etc.
 
 ### Inteligencia comercial
 - Demandas no encontradas se registran en `app/data/demandas_no_catalogo.jsonl`
@@ -107,6 +117,24 @@ asistente-cisge/
 4. **Ampliar pruebas con vendedores** → monitorear aciertos del OCR en listas reales
 5. **Optimizar pipeline de imágenes** → latencia >1 min; cuello de botella es GPT-4o OCR (max_tokens=4096). Opciones: comprimir imagen antes de enviar, evaluar si max_tokens puede reducirse.
 
+## Plan mediano plazo — Silicona y catálogo enriquecido
+
+### Opción preferida: campos custom en Navasoft
+- La BD Navasoft permite agregar características custom a productos (string); salen en el API actual.
+- Plan: agregar campo `diametro_mm` a los productos silicona RUBBERFLEX (~200 SKUs, llenado manual).
+- Cuando esté disponible: el motor filtra por `diametro_mm` en lugar de parsear `medida_cod`.
+- Beneficio: elimina toda la lógica de prefix match y resuelve codos de reducción (diámetros distintos, ej: `30 38 X10L`).
+- **No hacer todavía**: esperar a que los campos estén poblados antes de cambiar el motor.
+
+### Descartado: diccionario mm↔pulgadas para silicona
+- Silicona usa mm (19, 25, 38...) que no corresponden a los códigos nominales hidráulicos.
+- Los vendedores que trabajan con silicona conocen los mm directamente.
+- Agregar solo si en producción se detecta que vendedores escriben "silicona 3/4" en vez de "silicona 19mm".
+
+### Descartado: BD cisge-rollos como fuente de catálogo
+- Requeriría sincronización con Navasoft para precio/stock (fuente de verdad).
+- Más complejidad que los campos custom en Navasoft para el mismo resultado.
+
 ## Decisiones diferidas (con razón)
 
 | Tema | Estado | Razón |
@@ -116,6 +144,8 @@ asistente-cisge/
 | Historial lazy loading | **Implementado** | Solo se carga en E4 (GPT conversacional). E1/E2/E3 no hacen llamada a historial API |
 | Medidas métricas en medida_cod (Opción A) | Diferido | Actualmente MM LIVIANA/PESADA busca M12/M14 por descripción (Opción B). Opción A requeriría que `_extraer_medidas_lista` distinga cuándo un segmento de código (`-12-`) es hilo métrico vs tamaño de manguera (`12→3/4"`), lo cual depende de la familia de producto. Más preciso pero requiere refactorizar el extractor de medidas por familia. |
 | Reemplazar GPT parser E3 con `interpretar_linea` | **Descartado** | `interpretar_linea` requiere coincidencia exacta con grupos del catálogo. Falla con lenguaje natural (ej: "espiga hembra jic" no matchea porque en el catálogo todos los grupos incluyen el subtipo SAE: "ESPIGA HEMBRA JIC R2"). Mantener alias manualmente no escala. GPT es la elección correcta para E3. |
+| Diccionario mm↔pulgadas para silicona | **Diferido** | Los vendedores que manejan silicona conocen mm directamente. Agregar solo si en producción se ve "silicona 3/4" en vez de "silicona 19mm". |
+| Campos diametro_mm custom en Navasoft | **Pendiente llenado manual** | BD ya soporta el campo; cuando esté poblado, el motor puede filtrar directamente sin parsear medida_cod. |
 
 ## Principio de bug fixing
 
