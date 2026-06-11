@@ -194,7 +194,7 @@ Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
 }
 subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
 tipo: tipo de producto exacto del catálogo. Si el usuario especificó subtipo (R1/R2/R12/etc.), inclúyelo (ej: "ESPIGA MACHO NPT R2"). Si no especificó, usa el prefijo base (ej: "ESPIGA MACHO NPT").
-medida: primera medida mencionada como fracción: 1/2, 3/4, 1, 1 1/4
+medida: primera medida — fracción de pulgada (1/2, 3/4, 1, 1 1/4) o mm para silicona/industrial: extrae SOLO el número sin "mm" (ej: 19mm → "19", 38mm → "38", 25mm → "25")
 medidas: si el usuario menciona dos medidas separadas por "x" (ej: "3/8 x 3/8", "1/4 x 1/2"), extrae la lista ordenada: ["3/8", "3/8"]. Si hay una sola medida, dejar vacío [].
 marca: marca oficial: QF, JDEFLEX, VITILLO, MACTUBI, AF, LT, DME, etc.
 color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
@@ -507,6 +507,11 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     """E3: llama a buscar_por_tipo_medida_marca() con campos del parser."""
     tipo        = parsed.get("tipo") or None
     medida      = parsed.get("medida") or None
+    # Normalizar medida mm: "19mm" → "19" (por si GPT incluye la unidad)
+    if medida:
+        _mm = re.match(r'^(\d+)\s*mm$', medida.strip(), re.IGNORECASE)
+        if _mm:
+            medida = _mm.group(1)
     medidas     = parsed.get("medidas") or []
     marca       = parsed.get("marca") or None
     presion     = parsed.get("presion") or None
