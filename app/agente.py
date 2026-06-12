@@ -252,7 +252,7 @@ ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOL
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, t/m/manulli/tipo manulli = ferrula_tm="si" (default). lisa/00210 = ferrula_tm="no".
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
-Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
+Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga]. EXCEPCIÓN: si ambos lados tienen género explícito (H./Hembra y M./Macho) con el mismo tipo de rosca → ADAPTADOR (no ESPIGA): tipo="ADAP MACHO X X HEMBRA X". Ej: "H. JIC 16 - M. JIC 16 90°" → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90" (convención: MACHO primero en el tipo, sin importar el orden del input).
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU | tapon macho milimetrico = TAPON MACHO METRICO | esp h a p / espiga h a p / "a/plano" = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS). "G" en abreviación de espiga (ej: H.G.A.P, Esp.H.G.A.P) = doble_hex=true (G=giratoria=doble hexágono). Ej: "Esp. H.A.P 90° -10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", medida="5/8". Ej: "Esp. H.G.A.P 90° -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"].
 ESPIGA NPT sin indicar macho/hembra → default MACHO: tipo="ESPIGA MACHO NPT". Solo para NPT; otros tipos mantienen HEMBRA por defecto.
@@ -899,6 +899,9 @@ REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga")
   Ej: "NPT08 - JIC16 90"          → tipo="ADAP MACHO NPT X HEMBRA JIC", medidas=["1/2","1"], angulo="90"
   Ej: "BSP12-ORFS08"              → tipo="ADAP MACHO BSP X HEMBRA ORFS", medidas=["3/4","1/2"]
   Convención: primer tipo=MACHO, segundo tipo=HEMBRA. Número suelto al final (45/90)=angulo.
+- TAMBIÉN ADAPTADOR: si ambos lados tienen género explícito (H./Hembra y M./Macho) con el MISMO tipo de rosca.
+  Ej: "H. JIC 16 - M. JIC 16 90°" → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90"
+  Convención: MACHO primero en el tipo, sin importar el orden en el input.
 
 Reglas generales:
 - "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
