@@ -600,6 +600,14 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["subfamilia"].isin(subfamilias)]
     if tipo:
         tipo_up = tipo.upper()
+        # Normalizar "MANGUERA X" → "X" para que el fallback tipo_cod encuentre todos los grupos.
+        # "MANGUERA" solo → "MANG" para prefix-match general de mangueras.
+        if tipo_up.startswith("MANGUERA"):
+            if tipo_up == "MANGUERA":
+                tipo    = "MANG"
+            else:                        # "MANGUERA R6" → "R6", "MANGUERA R12" → "R12"
+                tipo    = tipo[9:].strip()
+            tipo_up = tipo.upper()
         # Match exacto O prefijo con espacio: evita que "FERRULA R1" matchee "FERRULA R12"
         mask_tipo = (
             (r["grupo"].str.upper() == tipo_up) |

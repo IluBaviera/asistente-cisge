@@ -779,7 +779,7 @@ Vocabulario cerrado — usa EXACTAMENTE estos términos, sin expandir a nombre c
 Tipos de rosca: JIC | ORFS | BSP | BSPP | BSPT | NPT | SAE | METRIC | LIVIANA | PESADA | KOMATSU
 Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CASCO | REDUCCION | TAPON
 Tipos de manguera (norma SAE / código catálogo): {_tipos_manguera_str}
-Para mangueras: si el OCR menciona un tipo de la lista anterior (ej: R6, R12, 4SH, HT, STEAM, R13), úsalo directamente como tipo (ej: tipo="R6"). Solo usa "MANGUERA" si no hay tipo reconocible.
+Para mangueras: cuando el OCR diga "MANGUERA R6", "MANG R6", "MANGUERA R12", etc., el tipo es SOLO el código SAE: tipo="R6", tipo="R12". NUNCA pongas "MANGUERA R6" ni solo "MANGUERA" como tipo si hay un código SAE reconocible en la lista anterior. Solo usa "MANGUERA" si no hay ningún código SAE.
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
