@@ -305,15 +305,9 @@ async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     """E1 código exacto → E2 prefijo → GPT parser → E3 campos → E4 GPT."""
     try:
         return await _agente_cisge_impl(mensaje, numero_wa)
-    except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError,
-            httpx.RemoteProtocolError) as e:
-        logger.error(f"agente [{numero_wa}]: error de conexión: {type(e).__name__}: {e}")
-        return _MSG_ERROR_CONEXION
     except Exception as e:
-        if any(kw in type(e).__name__ for kw in ("Timeout", "Connection", "Network")):
-            logger.error(f"agente [{numero_wa}]: error de red ({type(e).__name__}): {e}")
-            return _MSG_ERROR_CONEXION
-        raise
+        logger.error(f"agente [{numero_wa}]: error inesperado: {type(e).__name__}: {e}", exc_info=True)
+        return _MSG_ERROR_CONEXION
 
 
 async def _agente_cisge_impl(mensaje: str, numero_wa: str) -> str:
