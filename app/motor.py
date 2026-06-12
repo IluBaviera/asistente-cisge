@@ -694,7 +694,11 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             if not r_r2.empty:
                 r = r_r2
     # Doble hexágono: excluir por defecto; incluir solo si el usuario lo pide
-    if not doble_hex:
+    if doble_hex:
+        r_hex = r[r["descripcion"].str.contains(r"c/hex|doble hex", na=False, case=False, regex=True)]
+        if not r_hex.empty:
+            r = r_hex
+    else:
         r_sin_hex = r[~r["descripcion"].str.contains(r"c/hex|doble hex", na=False, case=False, regex=True)]
         if not r_sin_hex.empty:
             r = r_sin_hex

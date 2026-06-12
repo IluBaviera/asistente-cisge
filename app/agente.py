@@ -247,7 +247,7 @@ color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
 angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). Aplica a espigas, adaptadores, bridas y prearmadas.
 cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
-doble_hex: true si el usuario pide "doble hexágono", "c/hex", o si en una abreviación de espiga hay "G" como modificador (ej: "Esp. H.G.A.P" → G=giratoria=doble hex). Default false.
+doble_hex: true si el usuario pide "doble hexágono", "c/hex", o si en una abreviación de espiga hay "G" como modificador. Aplica a CUALQUIER tipo de espiga. Ej: "Esp. H.G. JIC" → G=giratoria=doble hex, doble_hex=true, tipo="ESPIGA HEMBRA JIC". Ej: "Esp. H.G.A.P" → doble_hex=true, tipo="ESPIGA HEMBRA ORFS A/P". Default false.
 ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOLO si el usuario dice explícitamente "lisa" o "00210".
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, t/m/manulli/tipo manulli = ferrula_tm="si" (default). lisa/00210 = ferrula_tm="no".
@@ -869,7 +869,10 @@ benda/brend/bnda = BRIDA
 tapon macho milimetrico = TAPON MACHO METRICO
 espiga ojo / esp. ojo / ojo banjo / conex. ojo = CONEXION ANULAR TIPO OJO
 esp h a p / espiga h a p / H.A.P = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS)
-"G" en abreviación de espiga = giratoria = doble_hex=true. Ej: "Esp. H.G.A.P (90°) -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"]. Aplica a cualquier ángulo: H.G.A.P=recto, Esp.90H.G.A.P=90°, Esp.45H.G.A.P=45°.
+"G" en abreviación de espiga = giratoria = doble_hex=true. Aplica a CUALQUIER tipo de espiga (JIC, ORFS A/P, BSP, NPT, etc.).
+Ej: "Esp. H.G. JIC (R) -12-10" → tipo="ESPIGA HEMBRA JIC", doble_hex=true, medidas=["3/4","5/8"] ("(R)"=reducción=distintos tamaños, no cambia el tipo)
+Ej: "Esp. H.G.A.P (90°) -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"]
+Ej: "Esp. H.G. JIC 90° -12-12" → tipo="ESPIGA HEMBRA JIC", angulo="90", doble_hex=true, medida="3/4"
 
 CONEXION ANULAR TIPO OJO: formato "Esp.Ojo MXX-NN" → tipo="CONEXION ANULAR TIPO OJO", medida=NN (código nominal hose, ej: "04"→"1/4"), ignorar MXX (hilo del perno). Ej: "Esp. Ojo M10-04" → tipo="CONEXION ANULAR TIPO OJO", medida="04".
 
