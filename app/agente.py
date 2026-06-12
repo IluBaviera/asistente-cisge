@@ -30,15 +30,15 @@ logger = logging.getLogger(__name__)
 _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 _MODEL  = "gpt-4.1-mini"
 
-# Lista dinámica de tipos de manguera del catálogo para el parser de imágenes.
-# Excluye: contadores de alambre (12P, 110P...), internos silicona (SH*), ambiguos (1 char, DH*).
+# Lista dinámica de tipos de manguera usando nombres de grupo (legibles, ej: "MANG DESCARGA ACEITE").
+# Excluye: variantes SAE con sufijo descriptivo (R1 LISA, R2 MSHA...) y protectores de manguera.
+_SAE_VARIANT_PAT = re.compile(r'^(R\d{1,2}|4S[HP]|[12]SC)\s+\S', re.IGNORECASE)
 _tipos_manguera_str = " | ".join(sorted([
-    t for t in motor_df["tipo_cod"].dropna().unique()
-    if motor_df[motor_df["tipo_cod"] == t]["subfamilia"].str.contains("MANGUERA", na=False).any()
-    and not re.match(r'^\d+P$', t)
-    and not t.startswith('SH')
-    and not t.startswith('DH')
-    and len(t) > 1
+    g for g in motor_df[
+        motor_df["subfamilia"].str.contains("MANGUERA", na=False)
+    ]["grupo"].dropna().unique()
+    if not _SAE_VARIANT_PAT.match(g)
+    and not g.upper().startswith("PROTECTOR")
 ]))
 
 # Corrección OCR: "codo" + tipo SAE en la misma línea → "casco" (los codos no llevan subtipo SAE)
@@ -779,7 +779,7 @@ Vocabulario cerrado — usa EXACTAMENTE estos términos, sin expandir a nombre c
 Tipos de rosca: JIC | ORFS | BSP | BSPP | BSPT | NPT | SAE | METRIC | LIVIANA | PESADA | KOMATSU
 Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CASCO | REDUCCION | TAPON
 Tipos de manguera (norma SAE / código catálogo): {_tipos_manguera_str}
-Para mangueras: cuando el OCR diga "MANGUERA R6", "MANG R6", "MANGUERA R12", etc., el tipo es SOLO el código SAE: tipo="R6", tipo="R12". NUNCA pongas "MANGUERA R6" ni solo "MANGUERA" como tipo si hay un código SAE reconocible en la lista anterior. Solo usa "MANGUERA" si no hay ningún código SAE.
+Para mangueras: usa el nombre de grupo EXACTAMENTE como aparece en la lista anterior. Ejemplos: "MANGUERA DESCARGA ACEITE" → tipo="MANG DESCARGA ACEITE" | "MANGUERA R6" → tipo="R6" | "MANG R6" → tipo="MANG R6" | "MANGUERA R12" → tipo="R12" | "4SH" → tipo="4SH". Si el texto dice "MANGUERA X" y X aparece como nombre en la lista (ej "R6", "4SH"), usa ese nombre tal cual. NUNCA pongas solo "MANGUERA" si puedes identificar el tipo específico.
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):

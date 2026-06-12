@@ -600,19 +600,31 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["subfamilia"].isin(subfamilias)]
     if tipo:
         tipo_up = tipo.upper()
-        # Normalizar "MANGUERA X" → "X" para que el fallback tipo_cod encuentre todos los grupos.
-        # "MANGUERA" solo → "MANG" para prefix-match general de mangueras.
+        # Normalizar "MANGUERA X":
+        # - X es código SAE (R6, R12, 4SH...) → strip a "X" para tipo_cod fallback global
+        # - X es descriptivo (DESCARGA ACEITE, SUCCION AGUA...) → "MANG X" para grupo match exacto
+        # - "MANGUERA" solo → "MANG" para prefix-match general
         if tipo_up.startswith("MANGUERA"):
             if tipo_up == "MANGUERA":
-                tipo    = "MANG"
-            else:                        # "MANGUERA R6" → "R6", "MANGUERA R12" → "R12"
-                tipo    = tipo[9:].strip()
+                tipo = "MANG"
+            elif tipo_up.startswith("MANGUERA "):
+                sufijo = tipo[9:].strip()
+                if re.match(r'^(R\d{1,2}|4S[HP]|[12]SC)\b', sufijo, re.IGNORECASE):
+                    tipo = sufijo          # "MANGUERA R6" → "R6" (tipo_cod fallback)
+                else:
+                    tipo = "MANG " + sufijo  # "MANGUERA DESCARGA ACEITE" → "MANG DESCARGA ACEITE"
             tipo_up = tipo.upper()
         # Match exacto O prefijo con espacio: evita que "FERRULA R1" matchee "FERRULA R12"
         mask_tipo = (
             (r["grupo"].str.upper() == tipo_up) |
             r["grupo"].str.upper().str.startswith(tipo_up + " ", na=False)
         )
+        # "MANG X" donde X es código SAE → también incluir tipo_cod X (ej: "MANG R6" + tipo_cod="R6")
+        # Nota: no usar TIPO_SAE_MAP aquí porque mapea R6→["R"], R12→["R12","TSR"] etc. con lógica distinta
+        if tipo_up.startswith("MANG "):
+            suf_up = tipo_up[5:].strip()
+            if re.match(r'^(R\d{1,2}|4S[HP]|[12]SC)\b', suf_up):
+                mask_tipo = mask_tipo | (r["tipo_cod"].str.upper() == suf_up)
         # BSP ↔ BSPP equivalencia: en CISGE son intercambiables
         if "BSPP" in tipo_up:
             tipo_alt = tipo_up.replace("BSPP", "BSP")
