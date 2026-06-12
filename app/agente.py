@@ -52,6 +52,8 @@ _FAMILIAS_BASE_PREFIJOS = {
     "NIPLE", "VALVULA", "BRIDA", "CASCO", "REDUCCION", "TAPON",
     "PREARMADA", "PREAR ", "MAQUINA", "ABRAZADERA",
 }
+# Excluir subfamilias ADAPTADORES I/II: sus grupos son variantes de ADAP ya cubiertas por el vocab base
+_SUBFAMILIAS_EXCLUIR_OTROS = {"ADAPTADORES I", "ADAPTADORES II"}
 _EXCLUIR_OTROS = {
     "ACCESORIOS", "ARANDELAS", "ORING", "SELLOS", "SELLO PARA ACOPLE DE GARRA",
     "SELLO PARA CAMLOCK", "TAPA PLASTICO PARA DN", "TAPAS PLASTICAS",
@@ -63,9 +65,13 @@ _EXCLUIR_OTROS = {
     "COFLUID", "RACOR", "PORTAMANOMETROS", "MANIFOLD",
     "SMART TWO", "HERRAMIENTAS", "PILOT", "TUBERÍA EQUIPO TESTEO",
 }
+_grupos_adap_subfam = set(
+    motor_df[motor_df["subfamilia"].isin(_SUBFAMILIAS_EXCLUIR_OTROS)]["grupo"].dropna().unique()
+)
 _tipos_otros_str = " | ".join(sorted([
     g for g in motor_df["grupo"].dropna().unique()
     if g not in _manguera_grupos
+    and g not in _grupos_adap_subfam
     and g.upper() not in _EXCLUIR_OTROS
     and not any(g.upper().startswith(p) for p in _FAMILIAS_BASE_PREFIJOS)
 ]))
