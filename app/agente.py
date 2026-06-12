@@ -989,7 +989,7 @@ REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga")
   Ej: "H. JIC 16 - M. JIC 16 90°"             → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90"
   Ej: "H. JIC 16 - M. JIC 16 = 5 und (90°)"  → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90", cantidad=5  ← el (90°) después de la cantidad sigue siendo el ángulo
   Ej: "Adaptador M. JIC 4 - M BSP. 6"         → tipo="ADAP MACHO JIC X MACHO BSP", medidas=["1/4","3/8"]
-  Ángulo: SOLO si el texto menciona EXACTAMENTE 90 o 45 (con o sin °, con o sin paréntesis): "90°", "(90)", "(90°)", "45°", "(45)". Cualquier otro número entre paréntesis (ej: "(12)", "(6)", "(10)") NO es ángulo — es una cantidad o código. NUNCA inferir ángulo por tipo de producto; si no se especifica, angulo debe ser null.
+  Ángulo: solo el valor 90 o 45 en el texto cuenta como ángulo, con o sin °, con o sin paréntesis: "90°", "(90°)", "(90)", "45°", "(45°)", "(45)". Son ángulo aunque vengan DESPUÉS de la cantidad. Otros números en paréntesis como (12), (6), (10) NO son ángulos — son cantidades o códigos de caja. Si el texto no dice 90 ni 45, angulo=null.
   "M." / "M " / "Macho" antes de un tipo de rosca = género Macho. "H." / "Ho." / "H " / "Hembra" = género Hembra ("Ho." es error OCR frecuente de "H.").
   SAE dash suelto (4, 6, 8, 10) después del tipo = código nominal (4→1/4, 6→3/8, 8→1/2, 10→5/8).
 
