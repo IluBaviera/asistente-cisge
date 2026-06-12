@@ -313,7 +313,7 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
             "unidad":         str(p.get("unidad", "")).strip(),
             "almacenes":      p.get("almacenes") or {},
             "subfamilia":     str(p.get("subfamilia", "")).strip().upper(),
-            "grupo":          str(p.get("grupo", "")).strip().upper(),
+            "grupo":          str(p.get("grupo", "")).strip().upper().replace("�", "°"),
         }
         for p in productos
         if str(p.get("codigo", "")).strip()
