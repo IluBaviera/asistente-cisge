@@ -607,7 +607,10 @@ def _buscar_fila_imagen(parsed: dict, cantidad: int):
     if medidas and len(set(medidas)) == 1:
         if not medida:
             medida = medidas[0]
-        medidas = []
+            medidas = []
+        elif medidas[0] == medida:  # valor redundante — ya está en medida
+            medidas = []
+        # else: medidas[0] distinto de medida (ej: medida="M16", medidas=["3/8"]) → conservar ambos
     marca      = parsed.get("marca") or None
     presion    = parsed.get("presion") or None
     angulo     = parsed.get("angulo") or None
@@ -653,7 +656,10 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     if medidas and len(set(medidas)) == 1:
         if not medida:
             medida = medidas[0]
-        medidas = []
+            medidas = []
+        elif medidas[0] == medida:  # valor redundante — ya está en medida
+            medidas = []
+        # else: medidas[0] distinto de medida (ej: medida="M16", medidas=["3/8"]) → conservar ambos
     marca       = parsed.get("marca") or None
     presion     = parsed.get("presion") or None
     color       = parsed.get("color") or None

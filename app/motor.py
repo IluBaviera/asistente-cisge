@@ -762,7 +762,19 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         if not r_metrica.empty:
             r = r_metrica
         medida = None  # consumido; evita que el filtro regular de medida_cod use "M20"
-        # medidas_aplicadas queda False → filtro de tamaño de manguera (medidas) sigue corriendo
+        # Tamaño de manguera en medidas (ej: ["3/8"]) → aplicar estrictamente
+        if medidas and not medidas_aplicadas and len(medidas) == 1:
+            hose = medidas[0]
+            nominal_inv = {v: k for k, v in MEDIDA_NOMINAL.items()}
+            nominal = nominal_inv.get(hose.strip().rstrip('"'))
+            r_hose = r[r["medidas_cod"].apply(
+                lambda m: hose in m or bool(nominal and nominal in m)
+            )]
+            if not r_hose.empty:
+                r = r_hose
+            else:
+                return r_hose  # tamaño de manguera no existe → "Tamaño no disponible"
+            medidas_aplicadas = True
 
     if medidas and not medidas_aplicadas:
         if len(medidas) == 1:
