@@ -710,7 +710,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         cantidad   = int(parsed.get("cantidad", 1))
         fila_motor = None
         try:
-            if _buscar_con_parsed(parsed, imagen_cantidad=cantidad):
+            if _buscar_con_parsed(parsed, imagen_cantidad=cantidad) or parsed.get("codigo"):
                 fila_motor = _buscar_fila_imagen(parsed, cantidad)
         except Exception as exc:
             logger.warning(f"Excel capture error '{linea_orig}': {exc}")
