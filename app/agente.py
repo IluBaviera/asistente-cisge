@@ -517,6 +517,19 @@ def _elegir_fila_por_prioridad(resultados, cantidad: int):
     return resultados.loc[stocks.idxmax()]
 
 
+def _norm_medida(m: str) -> str:
+    """SAE dash / código nominal → fracción de pulgada. Ej: '-6'→'3/8', '-06'→'3/8', '-10'→'5/8'."""
+    m = m.strip()
+    _d = re.match(r'^-0*(\d+)$', m)
+    if _d:
+        m = _d.group(1).zfill(2)
+    elif re.match(r'^[2-9]$', m):
+        m = m.zfill(2)
+    if m in MEDIDA_NOMINAL:
+        m = MEDIDA_NOMINAL[m]
+    return m
+
+
 def _buscar_fila_imagen(parsed: dict, cantidad: int):
     """Busca y selecciona la fila óptima para un ítem de imagen. Devuelve pd.Series o None."""
     # E1: si GPT extrajo un código de catálogo explícito, buscarlo primero
@@ -527,8 +540,13 @@ def _buscar_fila_imagen(parsed: dict, cantidad: int):
             return fila_e1.iloc[0]
 
     tipo       = parsed.get("tipo") or None
-    medida     = parsed.get("medida") or None
-    medidas    = parsed.get("medidas") or []
+    medida     = _norm_medida(parsed.get("medida") or "") or None
+    medidas_raw = parsed.get("medidas") or []
+    medidas    = [_norm_medida(m) for m in medidas_raw]
+    if medidas and len(set(medidas)) == 1:
+        if not medida:
+            medida = medidas[0]
+        medidas = []
     marca      = parsed.get("marca") or None
     presion    = parsed.get("presion") or None
     angulo     = parsed.get("angulo") or None
@@ -565,17 +583,6 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
         _mm = re.match(r'^(\d+)\s*mm$', medida.strip(), re.IGNORECASE)
         if _mm:
             medida = _mm.group(1)
-    # Normalizar notación SAE dash / código con cero: "-6"→"06", "-06"→"06", "-10"→"10"
-    def _norm_medida(m: str) -> str:
-        m = m.strip()
-        _d = re.match(r'^-0*(\d+)$', m)   # con guion: -6, -06, -10, -12…
-        if _d:
-            m = _d.group(1).zfill(2)
-        elif re.match(r'^[2-9]$', m):      # dígito suelto sin guion: "6" → "06"
-            m = m.zfill(2)
-        if m in MEDIDA_NOMINAL:            # código nominal → fracción ("06" → "3/8")
-            m = MEDIDA_NOMINAL[m]
-        return m
     if medida:
         medida = _norm_medida(medida)
     medidas = [_norm_medida(m) for m in (parsed.get("medidas") or [])]
