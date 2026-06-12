@@ -288,7 +288,7 @@ Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
 subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
 tipo: tipo de producto exacto del catálogo. Si el usuario especificó subtipo (R1/R2/R12/etc.), inclúyelo (ej: "ESPIGA MACHO NPT R2"). Si no especificó, usa el prefijo base (ej: "ESPIGA MACHO NPT").
 medida: primera medida — fracción de pulgada (1/2, 3/4, 1, 1 1/4) o mm para silicona/industrial: extrae SOLO el número sin "mm" (ej: 19mm → "19", 38mm → "38", 25mm → "25")
-medidas: si el usuario menciona dos medidas separadas por "x" (ej: "3/8 x 3/8", "1/4 x 1/2"), extrae la lista ordenada: ["3/8", "3/8"]. Si hay una sola medida, dejar vacío [].
+medidas: si el usuario menciona dos medidas, separadas por "x" o por " - " (ej: "3/8 x 3/8", "1/4 x 1/2", "- 6 - 6", "- 8 - 10"), extrae la lista ordenada: ["3/8","3/8"]. Aplica la tabla nominal SAE (4→1/4, 6→3/8, 8→1/2, 10→5/8, 12→3/4, 16→1) para convertir dash codes a fracciones. Si hay una sola medida, dejar vacío [].
 marca: marca oficial: QF, JDEFLEX, VITILLO, MACTUBI, AF, LT, DME, etc.
 color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
@@ -998,6 +998,11 @@ REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga")
   Ángulo: solo el valor 90 o 45 en el texto cuenta como ángulo, con o sin °, con o sin paréntesis: "90°", "(90°)", "(90)", "45°", "(45°)", "(45)". Son ángulo aunque vengan DESPUÉS de la cantidad. Otros números en paréntesis como (12), (6), (10) NO son ángulos — son cantidades o códigos de caja. Si el texto no dice 90 ni 45, angulo=null.
   "M." / "M " / "Macho" antes de un tipo de rosca = género Macho. "H." / "Ho." / "H " / "Hembra" = género Hembra ("Ho." es error OCR frecuente de "H.").
   SAE dash suelto (4, 6, 8, 10) después del tipo = código nominal (4→1/4, 6→3/8, 8→1/2, 10→5/8).
+
+MEDIDAS DASH PARA PRODUCTOS NO-ESPIGA (uniones, niples, camlock, etc.):
+Cuando el nombre del producto va seguido de dos dash codes iguales ("- 6 - 6", "- 8 - 8", "- 12 - 12"), son la medida del producto — extraerlos en medidas[]. Aplica tabla nominal: 4→1/4, 6→3/8, 8→1/2, 10→5/8, 12→3/4, 16→1.
+Ej: "Union Escamada - 6 - 6 = 10 und" → tipo="UNION ESCAMADA R12", medidas=["3/8","3/8"], cantidad=10
+Ej: "Niple - 8 - 8 = 5 und"           → medidas=["1/2","1/2"]
 
 Reglas generales:
 - "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
