@@ -194,6 +194,8 @@ TIPO_ALIAS = {
     "silicona":                 "MANG SILICONA",
     "poliuretano":              "MANG PU",
     "pu":                       "MANG PU",
+    # Tapones — "milimetrico" es sinónimo de "metrico" solo para tapones macho
+    "tapon macho milimetrico":  "TAPON MACHO METRICO",
 }
 
 # Tipos SAE que pueden tener múltiples tipo_cod en BD

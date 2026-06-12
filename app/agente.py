@@ -208,7 +208,7 @@ Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
 Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU
+Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU | tapon macho milimetrico = TAPON MACHO METRICO
 ESPIGA NPT sin indicar macho/hembra → default MACHO: tipo="ESPIGA MACHO NPT". Solo para NPT; otros tipos mantienen HEMBRA por defecto.
 Si es_saludo es true, deja todos los demás campos vacíos.
 Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
@@ -473,6 +473,13 @@ def _elegir_fila_por_prioridad(resultados, cantidad: int):
 
 def _buscar_fila_imagen(parsed: dict, cantidad: int):
     """Busca y selecciona la fila óptima para un ítem de imagen. Devuelve pd.Series o None."""
+    # E1: si GPT extrajo un código de catálogo explícito, buscarlo primero
+    codigo = (parsed.get("codigo") or "").strip()
+    if codigo:
+        fila_e1 = buscar_por_codigo(codigo)
+        if not fila_e1.empty:
+            return fila_e1.iloc[0]
+
     tipo       = parsed.get("tipo") or None
     medida     = parsed.get("medida") or None
     medidas    = parsed.get("medidas") or []
@@ -768,6 +775,7 @@ bssp/bsps/bbsp = BSP
 luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA
 C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Cat/cat/CAT = CAT
 benda/brend/bnda = BRIDA
+tapon macho milimetrico = TAPON MACHO METRICO
 
 Bridas (tipo = "BRIDA CODE 61", "BRIDA CODE 62" o "BRIDA CAT"):
 - Si el texto contiene BRIDA o alias (benda/bnda) como familia, tipo = "BRIDA CODE 61" / "BRIDA CAT" etc. NUNCA "ESPIGA HEMBRA BRIDA ...".
@@ -801,7 +809,8 @@ Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES I
 "NIPLES", "CAMLOCK", "BRIDAS", "TUBERIAS HIDRAULICAS", "PREARMADAS", "MANOMETROS"
 
 Devuelve SOLO un objeto JSON con campo "items" que contiene el array. Cada elemento:
-{{"linea_original":"texto como aparece","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","ferrula_tm":"si","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
+{{"linea_original":"texto como aparece","codigo":"","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","ferrula_tm":"si","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
+codigo: si la línea contiene explícitamente un código de catálogo CISGE (alfanumérico con guiones, ej: DCA-10L, QF-R1-1/2, OR-SHH-19, 26711-12-12), extraerlo aquí tal cual. Si no hay código explícito, dejar vacío.
 Formato: {{"items": [{{...}}, {{...}}]}}
 
 TABLA DE MEDIDAS NOMINALES (código 2 dígitos pegado al tipo → pulgadas):
