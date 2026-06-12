@@ -252,7 +252,7 @@ ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOL
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, t/m/manulli/tipo manulli = ferrula_tm="si" (default). lisa/00210 = ferrula_tm="no".
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
-Si el tipo de rosca aparece mencionado DOS VECES (aunque sea el mismo estándar) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2" (MACHO primero, sin importar el orden del input). Aplica tanto si los estándares son distintos (NPT+JIC) como iguales (JIC+JIC). Ej: "JIC 1/4 x JIC 3/8" → tipo="ADAP MACHO JIC X HEMBRA JIC", medidas=["1/4","3/8"]. Ej: "H. JIC 16 - M. JIC 16 90°" → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90". Si el tipo aparece UNA SOLA VEZ → ESPIGA con medidas=[terminal, espiga].
+Si el tipo de rosca aparece mencionado DOS VECES (aunque sea el mismo estándar) → ADAPTADOR. Convención de género en el tipo: si ambos lados son explícitamente M./Macho → "ADAP MACHO X X MACHO Y"; si ambos son H./Hembra → "ADAP HEMBRA X X HEMBRA Y"; si difieren o no se especifica → "ADAP MACHO X1 X HEMBRA X2". Ej: "JIC 1/4 x JIC 3/8" → tipo="ADAP MACHO JIC X HEMBRA JIC", medidas=["1/4","3/8"]. Ej: "M. JIC -06 - M. NPT 06" → tipo="ADAP MACHO JIC X MACHO NPT", medidas=["3/8","3/8"]. Ej: "H. JIC 16 - M. JIC 16" → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1". Si el tipo aparece UNA SOLA VEZ → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
 Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU | tapon macho milimetrico = TAPON MACHO METRICO | esp h a p / espiga h a p / "a/plano" = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS). "G" en abreviación de espiga (ej: H.G.A.P, Esp.H.G.A.P) = doble_hex=true (G=giratoria=doble hexágono). Ej: "Esp. H.A.P 90° -10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", medida="5/8". Ej: "Esp. H.G.A.P 90° -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"].
 ESPIGA NPT sin indicar macho/hembra → default MACHO: tipo="ESPIGA MACHO NPT". Solo para NPT; otros tipos mantienen HEMBRA por defecto.
@@ -578,7 +578,14 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
         return m
     if medida:
         medida = _norm_medida(medida)
-    medidas     = [_norm_medida(m) for m in (parsed.get("medidas") or [])]
+    medidas = [_norm_medida(m) for m in (parsed.get("medidas") or [])]
+    # Si todas las medidas son iguales, colapsar a medida singular.
+    # Evita que fittings de un solo tamaño (UNION ESCAMADA, CAMLOCK, etc.) fallen
+    # cuando GPT emite medidas=["3/8","3/8"] pero el catálogo solo tiene medidas_cod=["3/8"].
+    if medidas and len(set(medidas)) == 1:
+        if not medida:
+            medida = medidas[0]
+        medidas = []
     marca       = parsed.get("marca") or None
     presion     = parsed.get("presion") or None
     color       = parsed.get("color") or None
@@ -899,12 +906,14 @@ REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga")
 - ESPIGA NPT sin indicar macho/hembra → default MACHO (las espigas NPT son macho por defecto).
   Ej: "terminal NPT08 - 12 esp"   → tipo="ESPIGA MACHO NPT", medidas=["1/2","3/4"]  ← MACHO, no HEMBRA
 - Si el tipo de rosca aparece DOS VECES (aunque sea el mismo estándar) y no hay keywords "terminal"/"esp": es ADAPTADOR.
+  Género en el tipo: si ambos lados son M./Macho → "ADAP MACHO X X MACHO Y"; si ambos son H./Hembra → "ADAP HEMBRA X X HEMBRA Y"; si no se especifica o difieren → "ADAP MACHO X1 X HEMBRA X2".
   Ej: "NPT08 - JIC16 90"          → tipo="ADAP MACHO NPT X HEMBRA JIC", medidas=["1/2","1"], angulo="90"
   Ej: "BSP12-ORFS08"              → tipo="ADAP MACHO BSP X HEMBRA ORFS", medidas=["3/4","1/2"]
   Ej: "JIC 1/4 x JIC 3/8"        → tipo="ADAP MACHO JIC X HEMBRA JIC", medidas=["1/4","3/8"]
   Ej: "JIC16-JIC12"               → tipo="ADAP MACHO JIC X HEMBRA JIC", medidas=["1","3/4"]
+  Ej: "M. JIC -06 - M. NPT 06"   → tipo="ADAP MACHO JIC X MACHO NPT", medidas=["3/8","3/8"]
   Ej: "H. JIC 16 - M. JIC 16 90°"→ tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90"
-  Convención: MACHO primero en el tipo, sin importar el orden del input. Número suelto al final (45/90)=angulo.
+  Número suelto al final (45/90)=angulo.
 
 Reglas generales:
 - "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
