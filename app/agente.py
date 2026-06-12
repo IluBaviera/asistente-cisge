@@ -863,7 +863,7 @@ Si el OCR entregó una palabra incierta, elige el término más cercano de la li
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
 ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
 bssp/bsps/bbsp = BSP
-luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA
+luvana/luvata/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA | "L y P"/"L/P"/"LyP" = hay variantes Liviana y Pesada (parsea como MM PESADA)
 C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Cat/cat/CAT = CAT
 benda/brend/bnda = BRIDA
 tapon macho milimetrico = TAPON MACHO METRICO
@@ -895,7 +895,8 @@ Espigas KOMATSU (tipo = "ESPIGA HEMBRA KOMATSU"):
 
 Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son tipos de rosca, NO marcas):
 - tipo debe incluir "MM": "ESPIGA HEMBRA MM LIVIANA", "ESPIGA MACHO MM LIVIANA", "ESPIGA HEMBRA MM PESADA", etc.
-- medida: extraer solo el diámetro métrico principal en formato "M12", "M14", "M18", etc. Ignorar pitch (x1.5) y tamaño de manguera al final.
+- medida: diámetro métrico en formato "M12", "M14", "M18", etc. NO aplicar tabla nominal SAE (M20 ≠ 1¼"; M20 es el hilo, va tal cual). Ignorar pitch (x1.5).
+- medidas: si hay un tamaño de manguera al final (ej: "-06", "1/2", "3/4"), extraerlo en medidas[]. Ej: "M20 -06" → medida="M20", medidas=["06"]. Ej: "M18 1/2" → medida="M18", medidas=["1/2"].
 - angulo: si hay 90 o 45 al final, extraerlo normalmente.
 - NO poner M12/M14 en marca.
 Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un subtipo en la línea.

@@ -757,10 +757,12 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     # Hilo métrico MM LIVIANA / MM PESADA — M12/M14/M18 van en descripción, no en medida_cod
     _es_metrica = tipo and re.search(r"MM\s+(LIVIANA|PESADA)", tipo.upper())
     if _es_metrica and medida and re.match(r"^M\d+$", medida.strip().upper()):
-        r_metrica = r[r["descripcion"].str.contains(medida.strip(), na=False, case=False)]
+        _mnum = re.search(r'\d+', medida).group()
+        r_metrica = r[r["descripcion"].str.contains(rf"\bM\s*{_mnum}\b", na=False, case=False, regex=True)]
         if not r_metrica.empty:
             r = r_metrica
-        medidas_aplicadas = True
+        medida = None  # consumido; evita que el filtro regular de medida_cod use "M20"
+        # medidas_aplicadas queda False → filtro de tamaño de manguera (medidas) sigue corriendo
 
     if medidas and not medidas_aplicadas:
         if len(medidas) == 1:
