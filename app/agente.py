@@ -295,8 +295,28 @@ _TOOL_MAP = {
 }
 
 
+_MSG_ERROR_CONEXION = (
+    "Estoy experimentando problemas técnicos en este momento. "
+    "Para consultas urgentes llámanos al (01) 451-0788 o (01) 452-5052. "
+    "Disculpa los inconvenientes."
+)
+
 async def agente_cisge(mensaje: str, numero_wa: str) -> str:
     """E1 código exacto → E2 prefijo → GPT parser → E3 campos → E4 GPT."""
+    try:
+        return await _agente_cisge_impl(mensaje, numero_wa)
+    except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError,
+            httpx.RemoteProtocolError) as e:
+        logger.error(f"agente [{numero_wa}]: error de conexión: {type(e).__name__}: {e}")
+        return _MSG_ERROR_CONEXION
+    except Exception as e:
+        if any(kw in type(e).__name__ for kw in ("Timeout", "Connection", "Network")):
+            logger.error(f"agente [{numero_wa}]: error de red ({type(e).__name__}): {e}")
+            return _MSG_ERROR_CONEXION
+        raise
+
+
+async def _agente_cisge_impl(mensaje: str, numero_wa: str) -> str:
     # ── Pre-check: intención de marcas → GPT directo ──────────────────────────
     if _INTENT_MARCAS.search(mensaje):
         logger.info(f"agente [{numero_wa}]: pregunta de marcas → GPT directo")
