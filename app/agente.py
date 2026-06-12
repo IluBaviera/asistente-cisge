@@ -41,6 +41,35 @@ _tipos_manguera_str = " | ".join(sorted([
     and not g.upper().startswith("PROTECTOR")
 ]))
 
+# Lista dinámica de grupos "no estándar": productos que no pertenecen al vocabulario base
+# (ESPIGA/FERRULA/ADAP/MANG/NIPLE/etc.) ni a las mangueras ya cubiertas arriba.
+# Incluye: UNION ESCAMADA, CAMLOCK, ACOPLE RAPIDO, PASAMURO, TEE, TUBERIA, MANOMETRO, etc.
+_manguera_grupos = set(
+    motor_df[motor_df["subfamilia"].str.contains("MANGUERA", na=False)]["grupo"].dropna().unique()
+)
+_FAMILIAS_BASE_PREFIJOS = {
+    "ESPIGA", "FERRULA", "ADAPTADOR", "ADAP ", "MANGUERA", "MANG ",
+    "NIPLE", "VALVULA", "BRIDA", "CASCO", "REDUCCION", "TAPON",
+    "PREARMADA", "PREAR ", "MAQUINA", "ABRAZADERA",
+}
+_EXCLUIR_OTROS = {
+    "ACCESORIOS", "ARANDELAS", "ORING", "SELLOS", "SELLO PARA ACOPLE DE GARRA",
+    "SELLO PARA CAMLOCK", "TAPA PLASTICO PARA DN", "TAPAS PLASTICAS",
+    "SALVAVIDA R2", "SALVAVIDA R12", "OREJAS CAMLOCKS", "PASADOR CAMLOCK",
+    "BINS PLASTICOS", "CABLE DE SEGURIDAD", "DADOS", "MUESTRA",
+    "MALETIN TESTEO", "PACK SEPROCAL", "PARTES MÁQUNAS", "MAQUINAS",
+    "KIT DE LIMPIEZA PARA MANGUERAS", "KIT REMPLAZO",
+    "POYECTIL DE LIMPIEZA", "PROJECTILES PISTOLA DE LIMPIEZA",
+    "COFLUID", "RACOR", "PORTAMANOMETROS", "MANIFOLD",
+    "SMART TWO", "HERRAMIENTAS", "PILOT", "TUBERÍA EQUIPO TESTEO",
+}
+_tipos_otros_str = " | ".join(sorted([
+    g for g in motor_df["grupo"].dropna().unique()
+    if g not in _manguera_grupos
+    and g.upper() not in _EXCLUIR_OTROS
+    and not any(g.upper().startswith(p) for p in _FAMILIAS_BASE_PREFIJOS)
+]))
+
 # Corrección OCR: "codo" + tipo SAE en la misma línea → "casco" (los codos no llevan subtipo SAE)
 _RE_CODO    = re.compile(r'\bcodo\b', re.IGNORECASE)
 _RE_SAE     = re.compile(r'\bR\d{1,2}(T/M|T)?\b', re.IGNORECASE)
@@ -780,6 +809,8 @@ Tipos de rosca: JIC | ORFS | BSP | BSPP | BSPT | NPT | SAE | METRIC | LIVIANA | 
 Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CASCO | REDUCCION | TAPON
 Tipos de manguera (norma SAE / código catálogo): {_tipos_manguera_str}
 Para mangueras: usa el nombre de grupo EXACTAMENTE como aparece en la lista anterior. Ejemplos: "MANGUERA DESCARGA ACEITE" → tipo="MANG DESCARGA ACEITE" | "MANGUERA R6" → tipo="R6" | "MANG R6" → tipo="MANG R6" | "MANGUERA R12" → tipo="R12" | "4SH" → tipo="4SH". Si el texto dice "MANGUERA X" y X aparece como nombre en la lista (ej "R6", "4SH"), usa ese nombre tal cual. NUNCA pongas solo "MANGUERA" si puedes identificar el tipo específico.
+Otros tipos de producto (grupos del catálogo CISGE): {_tipos_otros_str}
+Para productos que no encajan en las familias base (ESPIGA/FERRULA/ADAPTADOR/etc.) ni en mangueras: busca el grupo más cercano en la lista anterior y úsalo como tipo. Ej: "Union Escamada" → tipo="UNION ESCAMADA R12" | "camlock tipo A" → tipo=`CAMLOCK AL TIPO "A"` | "acople rapido" → tipo="ACOPLE RÁPIDO ISO A" | "manometro" → tipo="MANOMETRO AXIAL ACERO INOX".
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
