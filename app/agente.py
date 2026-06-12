@@ -836,6 +836,9 @@ luvana/luvata/luvat/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESAD
 C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Cat/cat/CAT = CAT
 benda/brend/bnda = BRIDA
 tapon macho milimetrico = TAPON MACHO METRICO
+espiga ojo / esp. ojo / ojo banjo / conex. ojo = CONEXION ANULAR TIPO OJO
+
+CONEXION ANULAR TIPO OJO: formato "Esp.Ojo MXX-NN" → tipo="CONEXION ANULAR TIPO OJO", medida=NN (código nominal hose, ej: "04"→"1/4"), ignorar MXX (hilo del perno). Ej: "Esp. Ojo M10-04" → tipo="CONEXION ANULAR TIPO OJO", medida="04".
 
 Bridas (tipo = "BRIDA CODE 61", "BRIDA CODE 62" o "BRIDA CAT"):
 - Si el texto contiene BRIDA o alias (benda/bnda) como familia, tipo = "BRIDA CODE 61" / "BRIDA CAT" etc. NUNCA "ESPIGA HEMBRA BRIDA ...".

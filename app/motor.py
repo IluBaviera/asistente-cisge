@@ -196,6 +196,11 @@ TIPO_ALIAS = {
     "pu":                       "MANG PU",
     # Tapones — "milimetrico" es sinónimo de "metrico" solo para tapones macho
     "tapon macho milimetrico":  "TAPON MACHO METRICO",
+    # Conexión anular tipo ojo — vendedores la llaman "espiga ojo" o "ojo" por su forma física
+    "espiga ojo":               "CONEXION ANULAR TIPO OJO",
+    "esp ojo":                  "CONEXION ANULAR TIPO OJO",
+    "conexion ojo":             "CONEXION ANULAR TIPO OJO",
+    "conex ojo":                "CONEXION ANULAR TIPO OJO",
 }
 
 # Tipos SAE que pueden tener múltiples tipo_cod en BD
@@ -785,13 +790,18 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
                 mascara = mascara | (r["medida_cod"].str.strip() == f"CORG-{nominal}")
         r = r[mascara]
         # Excluir reductores: si el producto tiene múltiples segmentos de medida
-        # y no todos coinciden con la medida pedida, es un reductor — filtrar
-        medida_lim = medida.strip().rstrip('"').strip()
-        r_uniforme = r[r["medidas_cod"].apply(
-            lambda m: len(m) <= 1 or all(x.rstrip('"').strip() == medida_lim for x in m)
-        )]
-        if not r_uniforme.empty:
-            r = r_uniforme
+        # y no todos coinciden con la medida pedida, es un reductor — filtrar.
+        # Excepción: CONEXION ANULAR TIPO OJO — su código incluye el hilo del perno
+        # (M10→"10") antes del nominal de manguera (04), lo que genera medidas=["5/8","1/4"]
+        # incorrectamente. Para este tipo el filtro no aplica.
+        _skip_reducer = tipo and tipo.upper() == "CONEXION ANULAR TIPO OJO"
+        if not _skip_reducer:
+            medida_lim = medida.strip().rstrip('"').strip()
+            r_uniforme = r[r["medidas_cod"].apply(
+                lambda m: len(m) <= 1 or all(x.rstrip('"').strip() == medida_lim for x in m)
+            )]
+            if not r_uniforme.empty:
+                r = r_uniforme
     return r
 
 def buscar_por_descripcion(palabras: list) -> pd.DataFrame:
