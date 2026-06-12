@@ -152,32 +152,38 @@ _PAT_ADAP_GENDER = re.compile(
 )
 
 def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
-    """Corrección determinista: si GPT dijo ESPIGA pero la línea tiene dos pares
-    GÉNERO+ROSCA (H. JIC ... M. JIC), es ADAPTADOR — corrige tipo y extrae ángulo."""
+    """Dos correcciones independientes:
+    1. Si GPT dijo ESPIGA pero la línea tiene dos pares GÉNERO+ROSCA → corrige tipo a ADAP.
+    2. Si tipo es ADAP pero angulo está vacío → extrae (90)/(45) de linea_original."""
     for item in parsed_list:
-        if not (item.get("tipo") or "").upper().startswith("ESPIGA"):
-            continue
+        tipo_up = (item.get("tipo") or "").upper()
         linea = item.get("linea_original", "")
-        m = _PAT_ADAP_GENDER.search(linea)
-        if not m:
-            continue
-        g1 = "MACHO" if m.group("g1").strip().upper().startswith("M") else "HEMBRA"
-        g2 = "MACHO" if m.group("g2").strip().upper().startswith("M") else "HEMBRA"
-        t1, t2 = m.group("t1").upper(), m.group("t2").upper()
-        if g1 == "MACHO" and g2 == "MACHO":
-            nuevo_tipo = f"ADAP MACHO {t1} X MACHO {t2}"
-        elif g1 == "HEMBRA" and g2 == "HEMBRA":
-            nuevo_tipo = f"ADAP HEMBRA {t1} X HEMBRA {t2}"
-        elif g1 == "MACHO":
-            nuevo_tipo = f"ADAP MACHO {t1} X HEMBRA {t2}"
-        else:  # g1=HEMBRA, g2=MACHO
-            nuevo_tipo = f"ADAP MACHO {t2} X HEMBRA {t1}"
-        item["tipo"] = nuevo_tipo
-        if not item.get("angulo"):
+
+        # Corrección 1: ESPIGA mal clasificada → ADAP
+        if tipo_up.startswith("ESPIGA"):
+            m = _PAT_ADAP_GENDER.search(linea)
+            if m:
+                g1 = "MACHO" if m.group("g1").strip().upper().startswith("M") else "HEMBRA"
+                g2 = "MACHO" if m.group("g2").strip().upper().startswith("M") else "HEMBRA"
+                t1, t2 = m.group("t1").upper(), m.group("t2").upper()
+                if g1 == "MACHO" and g2 == "MACHO":
+                    nuevo_tipo = f"ADAP MACHO {t1} X MACHO {t2}"
+                elif g1 == "HEMBRA" and g2 == "HEMBRA":
+                    nuevo_tipo = f"ADAP HEMBRA {t1} X HEMBRA {t2}"
+                elif g1 == "MACHO":
+                    nuevo_tipo = f"ADAP MACHO {t1} X HEMBRA {t2}"
+                else:  # g1=HEMBRA, g2=MACHO
+                    nuevo_tipo = f"ADAP MACHO {t2} X HEMBRA {t1}"
+                item["tipo"] = nuevo_tipo
+                tipo_up = nuevo_tipo
+                logger.info(f"_corregir_adaptador_ocr tipo: '{linea[:60]}' → {nuevo_tipo}")
+
+        # Corrección 2: ADAP sin ángulo → extraer (90)/(45) del texto original
+        if tipo_up.startswith("ADAP") and not item.get("angulo"):
             ang = re.search(r'\(?(90|45)°?\)?', linea)
             if ang:
                 item["angulo"] = ang.group(1)
-        logger.info(f"_corregir_adaptador_ocr: '{linea[:60]}' → {nuevo_tipo}")
+                logger.info(f"_corregir_adaptador_ocr angulo: '{linea[:60]}' → {ang.group(1)}")
     return parsed_list
 
 
