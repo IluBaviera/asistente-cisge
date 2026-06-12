@@ -245,7 +245,7 @@ medidas: si el usuario menciona dos medidas separadas por "x" (ej: "3/8 x 3/8", 
 marca: marca oficial: QF, JDEFLEX, VITILLO, MACTUBI, AF, LT, DME, etc.
 color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
-angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). Aplica a espigas, adaptadores, bridas y prearmadas.
+angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). "(R)" o "(r)" o "recta" = sin ángulo = "". Aplica a espigas, adaptadores, bridas y prearmadas.
 cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
 doble_hex: true si el usuario pide "doble hexágono", "c/hex", o si en una abreviación de espiga hay "G" como modificador. Aplica a CUALQUIER tipo de espiga. Ej: "Esp. H.G. JIC" → G=giratoria=doble hex, doble_hex=true, tipo="ESPIGA HEMBRA JIC". Ej: "Esp. H.G.A.P" → doble_hex=true, tipo="ESPIGA HEMBRA ORFS A/P". Default false.
 ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOLO si el usuario dice explícitamente "lisa" o "00210".
@@ -870,7 +870,7 @@ tapon macho milimetrico = TAPON MACHO METRICO
 espiga ojo / esp. ojo / ojo banjo / conex. ojo = CONEXION ANULAR TIPO OJO
 esp h a p / espiga h a p / H.A.P = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS)
 "G" en abreviación de espiga = giratoria = doble_hex=true. Aplica a CUALQUIER tipo de espiga (JIC, ORFS A/P, BSP, NPT, etc.).
-Ej: "Esp. H.G. JIC (R) -12-10" → tipo="ESPIGA HEMBRA JIC", doble_hex=true, medidas=["3/4","5/8"] ("(R)"=reducción=distintos tamaños, no cambia el tipo)
+Ej: "Esp. H.G. JIC (R) -12-10" → tipo="ESPIGA HEMBRA JIC", doble_hex=true, medidas=["3/4","5/8"], angulo="" ("(R)"=recta=sin ángulo, es el default; ignorar)
 Ej: "Esp. H.G.A.P (90°) -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"]
 Ej: "Esp. H.G. JIC 90° -12-12" → tipo="ESPIGA HEMBRA JIC", angulo="90", doble_hex=true, medida="3/4"
 
@@ -948,7 +948,7 @@ Reglas generales:
 - Tipo: usa el nombre más descriptivo posible (ej: "ESPIGA HEMBRA ORFS", no solo "ESPIGA")
 - Medidas separadas por x (ej: "1/4x1/4", "3/8x1/2", "1/4x1/4x1/4x45°"): tomar SOLO las dos primeras como medidas=["N","M"], ignorar terceras en adelante. El ángulo al final (x45°, x90°) va en angulo, no en medidas. Dejar medida vacío. Excepción: bridas siguen su propia regla NxM.
 - Si no hay cantidad explícita, usar 1
-- angulo: "45" si dice 45°, "90" si dice 90°, "" si no especifica (recta)
+- angulo: "45" si dice 45°, "90" si dice 90°, "" si no especifica (recta). "(R)"/"(r)"/"recta" = "" (sin ángulo)
 - cola: "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2)"""
 
 
