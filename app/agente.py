@@ -30,6 +30,17 @@ logger = logging.getLogger(__name__)
 _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 _MODEL  = "gpt-4.1-mini"
 
+# Lista dinámica de tipos de manguera del catálogo para el parser de imágenes.
+# Excluye: contadores de alambre (12P, 110P...), internos silicona (SH*), ambiguos (1 char, DH*).
+_tipos_manguera_str = " | ".join(sorted([
+    t for t in motor_df["tipo_cod"].dropna().unique()
+    if motor_df[motor_df["tipo_cod"] == t]["subfamilia"].str.contains("MANGUERA", na=False).any()
+    and not re.match(r'^\d+P$', t)
+    and not t.startswith('SH')
+    and not t.startswith('DH')
+    and len(t) > 1
+]))
+
 # Corrección OCR: "codo" + tipo SAE en la misma línea → "casco" (los codos no llevan subtipo SAE)
 _RE_CODO    = re.compile(r'\bcodo\b', re.IGNORECASE)
 _RE_SAE     = re.compile(r'\bR\d{1,2}(T/M|T)?\b', re.IGNORECASE)
@@ -767,6 +778,8 @@ Recibirás texto OCR de una lista de productos. Para cada ítem con cantidad, ex
 Vocabulario cerrado — usa EXACTAMENTE estos términos, sin expandir a nombre completo ni sinónimos:
 Tipos de rosca: JIC | ORFS | BSP | BSPP | BSPT | NPT | SAE | METRIC | LIVIANA | PESADA | KOMATSU
 Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CASCO | REDUCCION | TAPON
+Tipos de manguera (norma SAE / código catálogo): {_tipos_manguera_str}
+Para mangueras: si el OCR menciona un tipo de la lista anterior (ej: R6, R12, 4SH, HT, STEAM, R13), úsalo directamente como tipo (ej: tipo="R6"). Solo usa "MANGUERA" si no hay tipo reconocible.
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
