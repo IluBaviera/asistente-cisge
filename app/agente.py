@@ -301,7 +301,7 @@ Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
 Si el tipo de rosca aparece mencionado DOS VECES (aunque sea el mismo estándar) → ADAPTADOR. "H. JIC ... M. JIC" = JIC DOS veces = ADAPTADOR (H./M. son género, no cuentan como tipos distintos). Convención de género: si ambos M./Macho → "ADAP MACHO X X MACHO Y"; si ambos H./Hembra → "ADAP HEMBRA X X HEMBRA Y"; si difieren → "ADAP MACHO X1 X HEMBRA X2" (MACHO siempre primero). Ej: "JIC 1/4 x JIC 3/8" → tipo="ADAP MACHO JIC X HEMBRA JIC", medidas=["1/4","3/8"]. Ej: "H. JIC 16 - M. JIC 16 90°" → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90". Ej: "M. JIC -06 - M. NPT 06" → tipo="ADAP MACHO JIC X MACHO NPT", medidas=["3/8","3/8"]. Ej: "M. JIC 4 - M BSP. 6" → tipo="ADAP MACHO JIC X MACHO BSP", medidas=["1/4","3/8"]. Si el tipo aparece UNA SOLA VEZ → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU | tapon macho milimetrico = TAPON MACHO METRICO | esp h a p / espiga h a p / "a/plano" = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS). "G" en abreviación de espiga (ej: H.G.A.P, Esp.H.G.A.P) = doble_hex=true (G=giratoria=doble hexágono). Ej: "Esp. H.A.P 90° -10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", medida="5/8". Ej: "Esp. H.G.A.P 90° -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"].
+Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU | tapon macho milimetrico = TAPON MACHO METRICO | union hembra npt = UNION HEMBRA NPT (NO es ESPIGA — es un accesorio adaptador con dos bocas hembra NPT; puede tener dos medidas distintas si es reducción) | esp h a p / espiga h a p / "a/plano" = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS). "G" en abreviación de espiga (ej: H.G.A.P, Esp.H.G.A.P) = doble_hex=true (G=giratoria=doble hexágono). Ej: "Esp. H.A.P 90° -10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", medida="5/8". Ej: "Esp. H.G.A.P 90° -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"].
 ESPIGA NPT sin indicar macho/hembra → default MACHO: tipo="ESPIGA MACHO NPT". Solo para NPT; otros tipos mantienen HEMBRA por defecto.
 Si es_saludo es true, deja todos los demás campos vacíos.
 Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
@@ -911,11 +911,12 @@ Familias: ESPIGA | FERRULA | ADAPTADOR | MANGUERA | NIPLE | VALVULA | BRIDA | CA
 Tipos de manguera (norma SAE / código catálogo): {_tipos_manguera_str}
 Para mangueras: usa el nombre de grupo EXACTAMENTE como aparece en la lista anterior. Ejemplos: "MANGUERA DESCARGA ACEITE" → tipo="MANG DESCARGA ACEITE" | "MANGUERA R6" → tipo="R6" | "MANG R6" → tipo="MANG R6" | "MANGUERA R12" → tipo="R12" | "4SH" → tipo="4SH". Si el texto dice "MANGUERA X" y X aparece como nombre en la lista (ej "R6", "4SH"), usa ese nombre tal cual. NUNCA pongas solo "MANGUERA" si puedes identificar el tipo específico.
 Otros tipos de producto (grupos del catálogo CISGE): {_tipos_otros_str}
-Para productos que no encajan en las familias base (ESPIGA/FERRULA/ADAPTADOR/etc.) ni en mangueras: busca el grupo más cercano en la lista anterior y úsalo como tipo. Ej: "Union Escamada" → tipo="UNION ESCAMADA R12" | "camlock tipo A" → tipo=`CAMLOCK AL TIPO "A"` | "acople rapido" → tipo="ACOPLE RÁPIDO ISO A" | "manometro" → tipo="MANOMETRO AXIAL ACERO INOX".
+Para productos que no encajan en las familias base (ESPIGA/FERRULA/ADAPTADOR/etc.) ni en mangueras: busca el grupo más cercano en la lista anterior y úsalo como tipo. Ej: "Union Escamada" → tipo="UNION ESCAMADA R12" | "camlock tipo A" → tipo=`CAMLOCK AL TIPO "A"` | "acople rapido" → tipo="ACOPLE RÁPIDO ISO A" | "manometro" → tipo="MANOMETRO AXIAL ACERO INOX" | "union hembra npt" → tipo="UNION HEMBRA NPT" (NUNCA "ESPIGA HEMBRA NPT").
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
 ores/o-rings/o-ring = ORFS | casco/casq/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red = REDUCTOR
+union hembra npt = UNION HEMBRA NPT (NO es ESPIGA — tiene dos bocas NPT hembra; puede ser reducción con dos medidas distintas)
 bssp/bsps/bbsp = BSP
 luvana/luvata/luvani = MM LIVIANA | pessao/pesao/pessoni/pesoni = MM PESADA | "L y P"/"L/P"/"LyP" = hay variantes Liviana y Pesada (parsea como MM PESADA)
 C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Cat/cat/CAT = CAT
@@ -1000,9 +1001,11 @@ REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga")
   SAE dash suelto (4, 6, 8, 10) después del tipo = código nominal (4→1/4, 6→3/8, 8→1/2, 10→5/8).
 
 MEDIDAS DASH PARA PRODUCTOS NO-ESPIGA (uniones, niples, camlock, etc.):
-Cuando el nombre del producto va seguido de dos dash codes iguales ("- 6 - 6", "- 8 - 8", "- 12 - 12"), son la medida del producto — extraerlos en medidas[]. Aplica tabla nominal: 4→1/4, 6→3/8, 8→1/2, 10→5/8, 12→3/4, 16→1.
-Ej: "Union Escamada - 6 - 6 = 10 und" → tipo="UNION ESCAMADA R12", medidas=["3/8","3/8"], cantidad=10
-Ej: "Niple - 8 - 8 = 5 und"           → medidas=["1/2","1/2"]
+Cuando el nombre del producto va seguido de dos dash codes iguales o distintos ("- 6 - 6", "- 8 - 8", "- 12 - 12", "- 8 - 4"), son la medida del producto — extraerlos en medidas[]. Aplica tabla nominal: 4→1/4, 6→3/8, 8→1/2, 10→5/8, 12→3/4, 16→1.
+Ej: "Union Escamada - 6 - 6 = 10 und"          → tipo="UNION ESCAMADA R12", medidas=["3/8","3/8"], cantidad=10
+Ej: "Union Hembra NPT - 4 - 4 = 5 und"          → tipo="UNION HEMBRA NPT", medidas=["1/4","1/4"], cantidad=5
+Ej: "Union Hembra NPT - 8 - 4 = 3 und"          → tipo="UNION HEMBRA NPT", medidas=["1/2","1/4"], cantidad=3
+Ej: "Niple - 8 - 8 = 5 und"                     → medidas=["1/2","1/2"]
 
 Reglas generales:
 - "11/2" o "11/4" sin espacio → "1 1/2" / "1 1/4" en el campo medida
