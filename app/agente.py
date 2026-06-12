@@ -143,10 +143,10 @@ def _corregir_medidas_ocr(parsed_list: list[dict]) -> list[dict]:
 # Regex determinista: detecta dos pares GENDER+ROSCA en una misma línea (patrón ADAPTADOR)
 # Ej: "H. JIC 16 - M. JIC 16"  →  g1=H., t1=JIC, g2=M., t2=JIC
 _PAT_ADAP_GENDER = re.compile(
-    r'(?P<g1>H\.|M\.|Hembra|Macho)\s*'
+    r'(?P<g1>Ho?\.|M\.|Hembra|Macho)\s*'
     r'(?P<t1>JIC|BSP|BSPP|BSPT|NPT|ORFS|SAE|METRIC)\b'
     r'.{0,40}'
-    r'(?P<g2>H\.|M\.|Hembra|Macho)\s*'
+    r'(?P<g2>Ho?\.|M\.|Hembra|Macho)\s*'
     r'(?P<t2>JIC|BSP|BSPP|BSPT|NPT|ORFS|SAE|METRIC)\b',
     re.IGNORECASE | re.DOTALL,
 )
@@ -990,7 +990,7 @@ REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga")
   Ej: "H. JIC 16 - M. JIC 16 = 5 und (90°)"  → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90", cantidad=5  ← el (90°) después de la cantidad sigue siendo el ángulo
   Ej: "Adaptador M. JIC 4 - M BSP. 6"         → tipo="ADAP MACHO JIC X MACHO BSP", medidas=["1/4","3/8"]
   Número suelto al final, o entre paréntesis con o sin °: (90°)/(90)/(45°)/(45) = angulo, aunque venga después de la cantidad.
-  "M." / "M " / "Macho" antes de un tipo de rosca = género Macho. "H." / "H " / "Hembra" = género Hembra.
+  "M." / "M " / "Macho" antes de un tipo de rosca = género Macho. "H." / "Ho." / "H " / "Hembra" = género Hembra ("Ho." es error OCR frecuente de "H.").
   SAE dash suelto (4, 6, 8, 10) después del tipo = código nominal (4→1/4, 6→3/8, 8→1/2, 10→5/8).
 
 Reglas generales:
