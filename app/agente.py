@@ -140,6 +140,47 @@ def _corregir_medidas_ocr(parsed_list: list[dict]) -> list[dict]:
     return parsed_list
 
 
+# Regex determinista: detecta dos pares GENDER+ROSCA en una misma línea (patrón ADAPTADOR)
+# Ej: "H. JIC 16 - M. JIC 16"  →  g1=H., t1=JIC, g2=M., t2=JIC
+_PAT_ADAP_GENDER = re.compile(
+    r'(?P<g1>H\.|M\.|Hembra|Macho)\s*'
+    r'(?P<t1>JIC|BSP|BSPP|BSPT|NPT|ORFS|SAE|METRIC)\b'
+    r'.{0,40}'
+    r'(?P<g2>H\.|M\.|Hembra|Macho)\s*'
+    r'(?P<t2>JIC|BSP|BSPP|BSPT|NPT|ORFS|SAE|METRIC)\b',
+    re.IGNORECASE | re.DOTALL,
+)
+
+def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
+    """Corrección determinista: si GPT dijo ESPIGA pero la línea tiene dos pares
+    GÉNERO+ROSCA (H. JIC ... M. JIC), es ADAPTADOR — corrige tipo y extrae ángulo."""
+    for item in parsed_list:
+        if not (item.get("tipo") or "").upper().startswith("ESPIGA"):
+            continue
+        linea = item.get("linea_original", "")
+        m = _PAT_ADAP_GENDER.search(linea)
+        if not m:
+            continue
+        g1 = "MACHO" if m.group("g1").strip().upper().startswith("M") else "HEMBRA"
+        g2 = "MACHO" if m.group("g2").strip().upper().startswith("M") else "HEMBRA"
+        t1, t2 = m.group("t1").upper(), m.group("t2").upper()
+        if g1 == "MACHO" and g2 == "MACHO":
+            nuevo_tipo = f"ADAP MACHO {t1} X MACHO {t2}"
+        elif g1 == "HEMBRA" and g2 == "HEMBRA":
+            nuevo_tipo = f"ADAP HEMBRA {t1} X HEMBRA {t2}"
+        elif g1 == "MACHO":
+            nuevo_tipo = f"ADAP MACHO {t1} X HEMBRA {t2}"
+        else:  # g1=HEMBRA, g2=MACHO
+            nuevo_tipo = f"ADAP MACHO {t2} X HEMBRA {t1}"
+        item["tipo"] = nuevo_tipo
+        if not item.get("angulo"):
+            ang = re.search(r'\(?(90|45)°?\)?', linea)
+            if ang:
+                item["angulo"] = ang.group(1)
+        logger.info(f"_corregir_adaptador_ocr: '{linea[:60]}' → {nuevo_tipo}")
+    return parsed_list
+
+
 # Preguntas de intención sobre marcas → GPT directo (antes de cualquier búsqueda)
 _INTENT_MARCAS = re.compile(
     r'\b(qu[eé]\s+marcas?|en\s+qu[eé]\s+marcas?|qu[eé]\s+marca\s+tiene|'
@@ -784,6 +825,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         parsed_list = await _parsear_lineas_imagen(texto)
         parsed_list = _enriquecer_tipo_ferrula(parsed_list)
         parsed_list = _corregir_medidas_ocr(parsed_list)
+        parsed_list = _corregir_adaptador_ocr(parsed_list)
         logger.info(f"OCR [{numero_wa}]: {len(parsed_list)} ítems parseados")
     except Exception as e:
         logger.warning(f"_parsear_lineas_imagen error: {e}")
