@@ -247,14 +247,14 @@ color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
 angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). Aplica a espigas, adaptadores, bridas y prearmadas.
 cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
-doble_hex: true solo si el usuario pide explícitamente "doble hexágono" o "c/hex". Default false.
+doble_hex: true si el usuario pide "doble hexágono", "c/hex", o si en una abreviación de espiga hay "G" como modificador (ej: "Esp. H.G.A.P" → G=giratoria=doble hex). Default false.
 ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOLO si el usuario dice explícitamente "lisa" o "00210".
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, t/m/manulli/tipo manulli = ferrula_tm="si" (default). lisa/00210 = ferrula_tm="no".
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
 Dos tipos de rosca distintos en un pedido (NPT+JIC, BSP+ORFS, etc.) → ADAPTADOR: tipo="ADAP MACHO X1 X HEMBRA X2". Mismo tipo → ESPIGA con medidas=[terminal, espiga].
 Aliases de marcas: JDE=JDEFLEX, VITI=VITILLO, MACTU=MACTUBI
-Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU | tapon macho milimetrico = TAPON MACHO METRICO
+Aliases de tipos: casco/casquillo = FERRULA | gir/girat = GIRATORIO | hex = HEXAGONAL | red/reductor = REDUCTOR | forx/orx = ORFS | bssp = BSP (typo frecuente) | bspp = BSPP | bspt = BSPT | silicona recta = MANG SILICONA RECTA | silicona codo 90 = MANG SILICONA CODO 90 | silicona codo 45 = MANG SILICONA CODO 45 | silicona codo = MANG SILICONA CODO | silicona corrugada = MANG SILICONA CORRUGADA | silicona radiador = MANG SILICONA RADIADOR | silicona = MANG SILICONA | pu/poliuretano = MANG PU | tapon macho milimetrico = TAPON MACHO METRICO | esp h a p / espiga h a p / "a/plano" = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS). "G" en abreviación de espiga (ej: H.G.A.P, Esp.H.G.A.P) = doble_hex=true (G=giratoria=doble hexágono). Ej: "Esp. H.A.P 90° -10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", medida="5/8". Ej: "Esp. H.G.A.P 90° -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"].
 ESPIGA NPT sin indicar macho/hembra → default MACHO: tipo="ESPIGA MACHO NPT". Solo para NPT; otros tipos mantienen HEMBRA por defecto.
 Si es_saludo es true, deja todos los demás campos vacíos.
 Para el campo tipo: elige el grupo más general que aplique — si el usuario no especificó subtipo (R1/R2/R12/etc.), usa el prefijo base (ej: "ESPIGA MACHO NPT" en lugar de "ESPIGA MACHO NPT R2").
@@ -837,6 +837,8 @@ C-61/C61/cod61/code61/c-61 = CODE 61 | C-62/C62/cod62/code62/c-62 = CODE 62 | Ca
 benda/brend/bnda = BRIDA
 tapon macho milimetrico = TAPON MACHO METRICO
 espiga ojo / esp. ojo / ojo banjo / conex. ojo = CONEXION ANULAR TIPO OJO
+esp h a p / espiga h a p / H.A.P = ESPIGA HEMBRA ORFS A/P (asiento plano ORFS)
+"G" en abreviación de espiga = giratoria = doble_hex=true. Ej: "Esp. H.G.A.P (90°) -10-10" → tipo="ESPIGA HEMBRA ORFS A/P", angulo="90", doble_hex=true, medidas=["5/8","5/8"]. Aplica a cualquier ángulo: H.G.A.P=recto, Esp.90H.G.A.P=90°, Esp.45H.G.A.P=45°.
 
 CONEXION ANULAR TIPO OJO: formato "Esp.Ojo MXX-NN" → tipo="CONEXION ANULAR TIPO OJO", medida=NN (código nominal hose, ej: "04"→"1/4"), ignorar MXX (hilo del perno). Ej: "Esp. Ojo M10-04" → tipo="CONEXION ANULAR TIPO OJO", medida="04".
 
@@ -872,7 +874,7 @@ Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES I
 "NIPLES", "CAMLOCK", "BRIDAS", "TUBERIAS HIDRAULICAS", "PREARMADAS", "MANOMETROS"
 
 Devuelve SOLO un objeto JSON con campo "items" que contiene el array. Cada elemento:
-{{"linea_original":"texto como aparece","codigo":"","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","ferrula_tm":"si","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
+{{"linea_original":"texto como aparece","codigo":"","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","doble_hex":false,"ferrula_tm":"si","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
 codigo: si la línea contiene explícitamente un código de catálogo CISGE (alfanumérico con guiones, ej: DCA-10L, QF-R1-1/2, OR-SHH-19, 26711-12-12), extraerlo aquí tal cual. Si no hay código explícito, dejar vacío.
 Formato: {{"items": [{{...}}, {{...}}]}}
 

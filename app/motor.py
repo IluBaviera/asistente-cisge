@@ -201,6 +201,12 @@ TIPO_ALIAS = {
     "esp ojo":                  "CONEXION ANULAR TIPO OJO",
     "conexion ojo":             "CONEXION ANULAR TIPO OJO",
     "conex ojo":                "CONEXION ANULAR TIPO OJO",
+    # Espiga hembra ORFS asiento plano — abreviaciones: "esp h a p", "h.a.p", "h.g.a.p" (G=giratoria=doble hex)
+    "esp h a p":                    "ESPIGA HEMBRA ORFS A/P",
+    "espiga h a p":                 "ESPIGA HEMBRA ORFS A/P",
+    "espiga hembra a/plano":        "ESPIGA HEMBRA ORFS A/P",
+    "espiga hembra asiento plano":  "ESPIGA HEMBRA ORFS A/P",
+    "espiga hembra ap":             "ESPIGA HEMBRA ORFS A/P",
 }
 
 # Tipos SAE que pueden tener múltiples tipo_cod en BD
