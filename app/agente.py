@@ -245,7 +245,7 @@ medidas: si el usuario menciona dos medidas separadas por "x" (ej: "3/8 x 3/8", 
 marca: marca oficial: QF, JDEFLEX, VITILLO, MACTUBI, AF, LT, DME, etc.
 color: A=Amarillo, N=Negro, R=Rojo — solo si se menciona explícitamente
 presion: si se menciona presión de trabajo
-angulo: ángulo de la conexión — "45" si dice 45°/45 grados, "90" si dice 90°/90 grados, "" si no especifica (recta por defecto). "(R)" o "(r)" o "recta" = sin ángulo = "". Aplica a espigas, adaptadores, bridas y prearmadas.
+angulo: ángulo de la conexión — "45" si dice 45°/45 grados/(45°)/(45), "90" si dice 90°/90 grados/(90°)/(90), "" si no especifica (recta por defecto). "(R)" o "(r)" o "recta" = sin ángulo = "". Aplica a espigas, adaptadores, bridas y prearmadas.
 cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
 doble_hex: true si el usuario pide "doble hexágono", "c/hex", o si en una abreviación de espiga hay "G" como modificador. Aplica a CUALQUIER tipo de espiga. Ej: "Esp. H.G. JIC" → G=giratoria=doble hex, doble_hex=true, tipo="ESPIGA HEMBRA JIC". Ej: "Esp. H.G.A.P" → doble_hex=true, tipo="ESPIGA HEMBRA ORFS A/P". Default false.
 ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOLO si el usuario dice explícitamente "lisa" o "00210".
@@ -941,7 +941,7 @@ REGLA PRIMARIA: si la línea contiene las palabras "terminal" Y ("esp"/"espiga")
   Ej: "H. JIC 16 - M. JIC 16 90°"             → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90"
   Ej: "H. JIC 16 - M. JIC 16 = 5 und (90°)"  → tipo="ADAP MACHO JIC X HEMBRA JIC", medida="1", angulo="90", cantidad=5  ← el (90°) después de la cantidad sigue siendo el ángulo
   Ej: "Adaptador M. JIC 4 - M BSP. 6"         → tipo="ADAP MACHO JIC X MACHO BSP", medidas=["1/4","3/8"]
-  Número suelto al final (45/90) o entre paréntesis (90°)/(45°) = angulo, aunque venga después de la cantidad.
+  Número suelto al final, o entre paréntesis con o sin °: (90°)/(90)/(45°)/(45) = angulo, aunque venga después de la cantidad.
   "M." / "M " / "Macho" antes de un tipo de rosca = género Macho. "H." / "H " / "Hembra" = género Hembra.
   SAE dash suelto (4, 6, 8, 10) después del tipo = código nominal (4→1/4, 6→3/8, 8→1/2, 10→5/8).
 
@@ -951,7 +951,7 @@ Reglas generales:
 - Tipo: usa el nombre más descriptivo posible (ej: "ESPIGA HEMBRA ORFS", no solo "ESPIGA")
 - Medidas separadas por x (ej: "1/4x1/4", "3/8x1/2", "1/4x1/4x1/4x45°"): tomar SOLO las dos primeras como medidas=["N","M"], ignorar terceras en adelante. El ángulo al final (x45°, x90°) va en angulo, no en medidas. Dejar medida vacío. Excepción: bridas siguen su propia regla NxM.
 - Si no hay cantidad explícita, usar 1
-- angulo: "45" si dice 45°, "90" si dice 90°, "" si no especifica (recta). "(R)"/"(r)"/"recta" = "" (sin ángulo)
+- angulo: "45" si dice 45°/(45°)/(45), "90" si dice 90°/(90°)/(90), "" si no especifica (recta). "(R)"/"(r)"/"recta" = "" (sin ángulo)
 - cola: "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2)"""
 
 
