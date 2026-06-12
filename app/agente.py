@@ -565,6 +565,16 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
         _mm = re.match(r'^(\d+)\s*mm$', medida.strip(), re.IGNORECASE)
         if _mm:
             medida = _mm.group(1)
+    # Normalizar notación SAE dash de un dígito: "-6" o "6" → "06" (código nominal)
+    if medida:
+        _dash = re.match(r'^-?([2-9])$', medida.strip())
+        if _dash:
+            medida = _dash.group(1).zfill(2)
+    # Código nominal (06, 08, 12...) → fracción: el motor solo hace la conversión inversa
+    # (3/8 → busca "06"), pero no la directa ("06" → busca "3/8"). Convertir aquí.
+    # Ej: "06" → "3/8" → motor matchea medida_cod="3/8" (UNION ESCAMADA) y "06" (JDE/HYP)
+    if medida and medida in MEDIDA_NOMINAL:
+        medida = MEDIDA_NOMINAL[medida]
     medidas     = parsed.get("medidas") or []
     marca       = parsed.get("marca") or None
     presion     = parsed.get("presion") or None
