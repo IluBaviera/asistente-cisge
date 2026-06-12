@@ -596,8 +596,6 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     if angulo in ("45", "90") and tipo and not re.search(rf'\b{angulo}\b', tipo.upper()):
         partes = tipo.split(" ", 1)
         tipo = partes[0] + f" {angulo}°" + (" " + partes[1] if len(partes) > 1 else "")
-    if subfamilias:
-        r = r[r["subfamilia"].isin(subfamilias)]
     if tipo:
         tipo_up = tipo.upper()
         # Normalizar "MANGUERA X":
@@ -656,6 +654,13 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             elif tipo_up == "TSER":
                 mascara_tipo = r["tipo_cod"].str.upper().str.startswith("TSER", na=False)
             r = r[mascara_tipo]
+    # Subfamilias: filtro suave DESPUÉS de tipo — si tipo ya encontró resultados, subfamilias solo refina.
+    # Esto evita que GPT asigne subfamilia incorrecta (ej: MANGUERAS HIDRAULICAS para producto INDUSTRIAL)
+    # y anule el match de tipo correcto.
+    if subfamilias and not r.empty:
+        r_sub = r[r["subfamilia"].isin(subfamilias)]
+        if not r_sub.empty:
+            r = r_sub
     # Silicona genérica sin ángulo → solo tipos rectos (excluir CODO 90 / CODO 45)
     if tipo_up == "MANG SILICONA":
         r_recta = r[~r["grupo"].str.contains(r'\bCODO\b', na=False, case=False, regex=True)]
