@@ -63,12 +63,19 @@ def _firma_valida(body: bytes, signature_header: str) -> bool:
     return hmac.compare_digest(signature_header[7:], esperada)
 
 # ── whitelist fase de pruebas ────────────────────
-NUMEROS_PERMITIDOS = {
+# Env var NUMEROS_PERMITIDOS separada por comas; agregar un vendedor ya no
+# requiere deploy. Fallback a la lista original si la variable no existe.
+_NUMEROS_DEFAULT = {
     "51943584251",   # Pablo (pruebas)
     "51981234344",   # Eduardo (vendedor)
     "51958678366",   # Guillermo (vendedor)
     "51982207673",   # Carlos Toledo (vendedor)
 }
+_numeros_env = os.getenv("NUMEROS_PERMITIDOS", "")
+NUMEROS_PERMITIDOS = (
+    {n.strip() for n in _numeros_env.split(",") if n.strip()}
+    if _numeros_env.strip() else _NUMEROS_DEFAULT
+)
 
 # ── deduplicación de mensajes (LRU: expulsa los más antiguos, no todo de golpe) ──
 mensajes_procesados: dict = {}   # dict preserva orden de inserción
