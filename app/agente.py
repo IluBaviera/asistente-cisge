@@ -153,14 +153,17 @@ _PAT_ADAP_GENDER = re.compile(
 
 def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
     """Dos correcciones independientes:
-    1. Si GPT dijo ESPIGA pero la línea tiene dos pares GÉNERO+ROSCA → corrige tipo a ADAP.
+    1. Si la línea tiene dos pares GÉNERO+ROSCA, reescribe el tipo a ADAP en
+       forma canónica MACHO-primero. Cubre tanto ESPIGA mal clasificada como
+       ADAP que GPT emitió con el género invertido respecto al texto.
     2. Si tipo es ADAP pero angulo está vacío → extrae (90)/(45) de linea_original."""
     for item in parsed_list:
         tipo_up = (item.get("tipo") or "").upper()
         linea = item.get("linea_original", "")
 
-        # Corrección 1: ESPIGA mal clasificada → ADAP
-        if tipo_up.startswith("ESPIGA"):
+        # Corrección 1: normalizar género a MACHO-primero (ESPIGA mal clasificada
+        # como adaptador, o ADAP que GPT emitió con el orden invertido del texto)
+        if tipo_up.startswith("ESPIGA") or tipo_up.startswith("ADAP"):
             m = _PAT_ADAP_GENDER.search(linea)
             if m:
                 g1 = "MACHO" if m.group("g1").strip().upper().startswith("M") else "HEMBRA"
