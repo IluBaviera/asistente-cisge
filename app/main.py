@@ -6,6 +6,8 @@ from app.motor import log_consultas
 from app.motor import refresh_stock_loop
 from app.agente import agente_cisge, procesar_imagen_whatsapp
 import asyncio
+import hashlib
+import hmac
 import httpx
 import json
 import os
@@ -35,9 +37,20 @@ async def startup_event():
     asyncio.create_task(refresh_stock_loop())
 
 # ── tokens de Meta ──────────────────────────────
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
-VERIFY_TOKEN   = os.getenv("VERIFY_TOKEN")
-PHONE_ID       = os.getenv("PHONE_NUMBER_ID")
+WHATSAPP_TOKEN  = os.getenv("WHATSAPP_TOKEN")
+VERIFY_TOKEN    = os.getenv("VERIFY_TOKEN")
+PHONE_ID        = os.getenv("PHONE_NUMBER_ID")
+META_APP_SECRET = os.getenv("META_APP_SECRET", "")
+if not META_APP_SECRET:
+    logger.warning("META_APP_SECRET no configurada — webhook SIN validación de firma")
+
+
+def _firma_valida(body: bytes, signature_header: str) -> bool:
+    """Valida X-Hub-Signature-256 (HMAC-SHA256 del body con el App Secret de Meta)."""
+    if not signature_header.startswith("sha256="):
+        return False
+    esperada = hmac.new(META_APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature_header[7:], esperada)
 
 # ── whitelist fase de pruebas ────────────────────
 NUMEROS_PERMITIDOS = {
@@ -113,7 +126,13 @@ def verificar_webhook(request: Request):
 
 @app.post("/webhook")
 async def recibir_mensaje(request: Request):
-    data = await request.json()
+    body = await request.body()
+    if META_APP_SECRET:
+        firma = request.headers.get("X-Hub-Signature-256", "")
+        if not _firma_valida(body, firma):
+            logger.warning("Webhook rechazado: firma X-Hub-Signature-256 inválida")
+            raise HTTPException(status_code=403, detail="Firma inválida")
+    data = json.loads(body)
     asyncio.create_task(_procesar_mensaje(data))
     return {"status": "ok"}
 
