@@ -181,12 +181,15 @@ def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
                 tipo_up = nuevo_tipo
                 logger.info(f"_corregir_adaptador_ocr tipo: '{linea[:60]}' → {nuevo_tipo}")
 
-        # Corrección 2: ADAP sin ángulo → extraer (90)/(45) del texto original
+        # Corrección 2: ADAP sin ángulo → extraer (90)/(45) del texto original.
+        # Exige paréntesis o símbolo de grado: evita confundir cantidades
+        # ("= 90 und") o códigos ("090-06-06") con un ángulo.
         if tipo_up.startswith("ADAP") and not item.get("angulo"):
-            ang = re.search(r'\(?(90|45)°?\)?', linea)
+            ang = re.search(r'\(\s*(90|45)\s*°?\s*\)|(?<![\d-])(90|45)\s*°', linea)
             if ang:
-                item["angulo"] = ang.group(1)
-                logger.info(f"_corregir_adaptador_ocr angulo: '{linea[:60]}' → {ang.group(1)}")
+                valor = ang.group(1) or ang.group(2)
+                item["angulo"] = valor
+                logger.info(f"_corregir_adaptador_ocr angulo: '{linea[:60]}' → {valor}")
     return parsed_list
 
 
