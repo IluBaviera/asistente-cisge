@@ -87,7 +87,7 @@ def ping():
 @app.get("/logs")
 def ver_logs(request: Request):
     _requiere_api_key(request)
-    return log_consultas[-20:]
+    return list(log_consultas)[-20:]  # deque no soporta slicing
 
 @app.get("/demandas")
 def ver_demandas(request: Request):

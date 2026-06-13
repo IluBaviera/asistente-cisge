@@ -5,6 +5,7 @@ import logging
 import time
 import httpx
 import pandas as pd
+from collections import deque
 from datetime import datetime
 
 # ─── LOGGING ──────────────────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-log_consultas = []
+log_consultas = deque(maxlen=500)  # acotado: el servicio nunca duerme (keep-alive)
 
 # ─── RUTAS / API ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
