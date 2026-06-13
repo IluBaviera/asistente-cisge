@@ -70,9 +70,18 @@ NUMEROS_PERMITIDOS = {
     "51982207673",   # Carlos Toledo (vendedor)
 }
 
-# ── deduplicación de mensajes ────────────────────
-mensajes_procesados: set = set()
+# ── deduplicación de mensajes (LRU: expulsa los más antiguos, no todo de golpe) ──
+mensajes_procesados: dict = {}   # dict preserva orden de inserción
 MAX_IDS = 1000
+
+def _ya_procesado(msg_id: str) -> bool:
+    """True si el mensaje ya fue procesado; si no, lo registra (con expulsión LRU)."""
+    if msg_id in mensajes_procesados:
+        return True
+    mensajes_procesados[msg_id] = None
+    while len(mensajes_procesados) > MAX_IDS:
+        mensajes_procesados.pop(next(iter(mensajes_procesados)))
+    return False
 
 # ── auth de endpoints internos ───────────────────
 # Si INTERNAL_API_KEY no está configurada, los endpoints quedan abiertos
@@ -161,11 +170,8 @@ async def _procesar_mensaje(data: dict):
             logger.info(f"Número no autorizado ignorado: {numero}")
             return
 
-        if msg_id in mensajes_procesados:
+        if _ya_procesado(msg_id):
             return
-        mensajes_procesados.add(msg_id)
-        if len(mensajes_procesados) > MAX_IDS:
-            mensajes_procesados.clear()
 
         await marcar_leido(msg_id)
 
