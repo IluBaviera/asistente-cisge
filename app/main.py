@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from app.motor import consultar
@@ -51,6 +51,17 @@ NUMEROS_PERMITIDOS = {
 mensajes_procesados: set = set()
 MAX_IDS = 1000
 
+# ── auth de endpoints internos ───────────────────
+# Si INTERNAL_API_KEY no está configurada, los endpoints quedan abiertos
+# (con warning) para no romper el deploy antes de crear la variable en Render.
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+if not INTERNAL_API_KEY:
+    logger.warning("INTERNAL_API_KEY no configurada — /logs, /demandas y /consultar quedan SIN protección")
+
+def _requiere_api_key(request: Request):
+    if INTERNAL_API_KEY and request.headers.get("X-API-Key") != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
 # ── endpoints existentes ─────────────────────────
 @app.get("/")
 def root():
@@ -61,12 +72,14 @@ def ping():
     return {"status": "alive"}
 
 @app.get("/logs")
-def ver_logs():
+def ver_logs(request: Request):
+    _requiere_api_key(request)
     return log_consultas[-20:]
 
 @app.get("/demandas")
-def ver_demandas():
+def ver_demandas(request: Request):
     """Devuelve las demandas no encontradas en catálogo para análisis comercial."""
+    _requiere_api_key(request)
     ruta = pathlib.Path(__file__).parent / "data" / "demandas_no_catalogo.jsonl"
     if not ruta.exists():
         return JSONResponse({"total": 0, "items": []})
@@ -85,7 +98,8 @@ class Query(BaseModel):
     mensaje: str
 
 @app.post("/consultar")
-def consultar_api(query: Query):
+def consultar_api(query: Query, request: Request):
+    _requiere_api_key(request)
     _, respuesta = consultar(query.mensaje)
     return {"respuesta": respuesta}
 
