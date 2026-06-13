@@ -20,6 +20,16 @@ app = FastAPI()
 
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL", "https://asistente-cisge.onrender.com")
 
+# Referencias fuertes a tasks en vuelo: el event loop solo guarda referencias
+# débiles, sin esto el GC puede cancelar un task a mitad de ejecución.
+_tasks_activos: set = set()
+
+def _crear_task(coro):
+    task = asyncio.create_task(coro)
+    _tasks_activos.add(task)
+    task.add_done_callback(_tasks_activos.discard)
+    return task
+
 async def _keep_alive():
     await asyncio.sleep(60)  # esperar a que el servidor esté completamente listo
     while True:
@@ -33,8 +43,8 @@ async def _keep_alive():
 
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(_keep_alive())
-    asyncio.create_task(refresh_stock_loop())
+    _crear_task(_keep_alive())
+    _crear_task(refresh_stock_loop())
 
 # ── tokens de Meta ──────────────────────────────
 WHATSAPP_TOKEN  = os.getenv("WHATSAPP_TOKEN")
@@ -133,7 +143,7 @@ async def recibir_mensaje(request: Request):
             logger.warning("Webhook rechazado: firma X-Hub-Signature-256 inválida")
             raise HTTPException(status_code=403, detail="Firma inválida")
     data = json.loads(body)
-    asyncio.create_task(_procesar_mensaje(data))
+    _crear_task(_procesar_mensaje(data))
     return {"status": "ok"}
 
 async def _procesar_mensaje(data: dict):
