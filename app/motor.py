@@ -602,6 +602,7 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     medidas_aplicadas = False
+    tipo_up = ""  # siempre definido: se usa fuera del bloque `if tipo:` (silicona, accesorios)
     # Insertar ángulo en el tipo antes del matching: "ESPIGA HEMBRA ORFS" + 90 → "ESPIGA 90° HEMBRA ORFS"
     # Pero NO si el tipo ya lo contiene (ej: "MANG SILICONA CODO 90" desde TIPO_ALIAS)
     if angulo in ("45", "90") and tipo and not re.search(rf'\b{angulo}\b', tipo.upper()):
