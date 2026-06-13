@@ -313,7 +313,7 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
             "unidad":         str(p.get("unidad", "")).strip(),
             "almacenes":      p.get("almacenes") or {},
             "subfamilia":     str(p.get("subfamilia", "")).strip().upper(),
-            "grupo":          str(p.get("grupo", "")).replace(" ", " ").replace("�", "°").strip().upper(),
+            "grupo":          str(p.get("grupo", "")).replace("\xa0", " ").replace("\ufffd", "\u00b0").strip().upper(),  # NBSP->espacio, U+FFFD->grado (encoding Navasoft)
         }
         for p in productos
         if str(p.get("codigo", "")).strip()
