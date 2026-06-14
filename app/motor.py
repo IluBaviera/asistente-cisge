@@ -829,10 +829,12 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             r_uniforme = r[r["medidas_cod"].apply(
                 lambda m: len(m) <= 1 or all(x.rstrip('"').strip() == medida_lim for x in m)
             )]
-            # Estricto: con una sola medida pedida, si solo quedan reductores
-            # (otro lado distinto), vaciar en vez de devolver un tamaño errado.
-            # Un reductor real se pide con dos medidas y va por la rama `medidas`.
-            r = r_uniforme
+            # Suave a propósito: medidas_cod no es fiable (códigos como 03310-08
+            # extraen un "10" espurio del cuerpo → falso reductor). Si se vacía
+            # aquí, se elimina la férrula correcta. C1 (reductor estricto) requiere
+            # primero una extracción de medidas fiable; revertido tras romper férrulas.
+            if not r_uniforme.empty:
+                r = r_uniforme
     return r
 
 def buscar_por_descripcion(palabras: list) -> pd.DataFrame:

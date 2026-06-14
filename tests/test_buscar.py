@@ -66,14 +66,25 @@ def test_b1_busqueda_sin_tipo_no_crashea():
 
 # ── C1 y C2: bugs confirmados, pendientes de fix (xfail) ──────────────────────
 
+def test_ferrula_por_medida_encuentra_tm():
+    """REGRESIÓN (rotura por C1): el código de férrula 03310-08 extrae un '10'
+    espurio de su cuerpo → medidas_cod=['5/8','1/2']. NO debe tratarse como
+    reductor: buscar FERRULA R2 1/2 debe devolver la variante T/M."""
+    r = motor.buscar_por_tipo_medida_marca(tipo="FERRULA R2", medida="1/2")
+    assert r["codigo"].tolist() == ["03310-08"]
+
+
+@pytest.mark.xfail(reason="C1: exclusión de reductores revertida (medidas_cod no fiable); "
+                          "requiere extracción de medidas por cola de guiones",
+                   strict=False)
 def test_c1_reductor_no_debe_fugar():
-    """C1 (resuelto): pedir 3/16 no debe devolver el reductor 1/4 x 3/16."""
+    """C1 (pendiente): pedir 3/16 no debería devolver el reductor 1/4 x 3/16."""
     r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA JIC", medida="3/16", angulo="90")
     assert r.empty
 
 
 def test_c1_medida_uniforme_si_matchea():
-    """Contraprueba C1: pedir 3/4 (que sí existe uniforme) debe encontrarlo."""
+    """Pedir 3/4 (que sí existe uniforme) debe encontrarlo."""
     r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA JIC", medida="3/4", angulo="90")
     assert sorted(r["codigo"].tolist()) == ["26791-12-12"]
 
