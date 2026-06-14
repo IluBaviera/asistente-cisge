@@ -760,9 +760,12 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     _es_metrica = tipo and re.search(r"MM\s+(LIVIANA|PESADA)", tipo.upper())
     if _es_metrica and medida and re.match(r"^M\d+$", medida.strip().upper()):
         _mnum = re.search(r'\d+', medida).group()
-        r_metrica = r[r["descripcion"].str.contains(rf"\bM\s*{_mnum}\b", na=False, case=False, regex=True)]
-        if not r_metrica.empty:
-            r = r_metrica
+        # (?!\d) en vez de \b final: el \b falla cuando el pitch viene pegado
+        # ("m24x1.5"), porque entre el dígito y la 'x' no hay frontera de palabra.
+        r_metrica = r[r["descripcion"].str.contains(rf"\bM\s*{_mnum}(?!\d)", na=False, case=False, regex=True)]
+        # Estricto: si la rosca pedida (ej: M12) no existe, vaciar en vez de
+        # caer a otra rosca disponible (ej: M24). Antes era suave.
+        r = r_metrica
         medida = None  # consumido; evita que el filtro regular de medida_cod use "M20"
         # Tamaño de manguera en medidas (ej: ["3/8"]) → aplicar estrictamente
         if medidas and not medidas_aplicadas and len(medidas) == 1:

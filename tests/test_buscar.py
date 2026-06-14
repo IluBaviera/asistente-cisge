@@ -78,9 +78,27 @@ def test_c1_medida_uniforme_si_matchea():
     assert sorted(r["codigo"].tolist()) == ["26791-12-12"]
 
 
-@pytest.mark.xfail(reason="C2: filtro métrico es suave; M12 inexistente cae a otra rosca",
-                   strict=False)
 def test_c2_rosca_metrica_inexistente_no_fallthrough():
-    """Pedir M12 (no existe, mínimo es M14) no debe devolver M14/M24."""
+    """C2 (resuelto): pedir M12 (no existe, mínimo M14) no debe caer a M14/M24."""
     r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA MM PESADA", medida="M12", angulo="90")
     assert r.empty
+
+
+def test_c2_rosca_metrica_existente_si_matchea():
+    """Contraprueba C2: M24 sí existe y debe encontrarse."""
+    r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA MM PESADA", medida="M24", angulo="90")
+    assert sorted(r["codigo"].tolist()) == ["20591T-24-08"]
+
+
+def test_c2_tolera_pitch_pegado(monkeypatch):
+    """C2 boundary: 'm18x1.5' (pitch pegado) debe matchear M18. Con el \\b
+    final viejo no matcheaba (no hay frontera entre '8' y 'x')."""
+    payload = {"productos": [{
+        "codigo": "20591T-18-04",
+        "descripcion": 'espiga 90° hembra metrica pesada r2 / r12 m18x1.5 x 1/4"',
+        "marca": "LT", "precio": 5.0, "unidad": "UND", "almacenes": {},
+        "subfamilia": "ESPIGAS I", "grupo": "ESPIGA 90° HEMBRA MM PESADA R2",
+    }]}
+    monkeypatch.setattr(motor, "df", motor._build_df_from_api(payload))
+    r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA MM PESADA", medida="M18", angulo="90")
+    assert r["codigo"].tolist() == ["20591T-18-04"]
