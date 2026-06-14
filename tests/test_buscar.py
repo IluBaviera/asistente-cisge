@@ -66,12 +66,16 @@ def test_b1_busqueda_sin_tipo_no_crashea():
 
 # ── C1 y C2: bugs confirmados, pendientes de fix (xfail) ──────────────────────
 
-@pytest.mark.xfail(reason="C1: exclusión de reductores es suave; 3/16 fuga a 1/4x3/16",
-                   strict=False)
 def test_c1_reductor_no_debe_fugar():
-    """Pedir 3/16 (uniforme) no debe devolver el reductor 1/4 x 3/16."""
+    """C1 (resuelto): pedir 3/16 no debe devolver el reductor 1/4 x 3/16."""
     r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA JIC", medida="3/16", angulo="90")
     assert r.empty
+
+
+def test_c1_medida_uniforme_si_matchea():
+    """Contraprueba C1: pedir 3/4 (que sí existe uniforme) debe encontrarlo."""
+    r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA JIC", medida="3/4", angulo="90")
+    assert sorted(r["codigo"].tolist()) == ["26791-12-12"]
 
 
 @pytest.mark.xfail(reason="C2: filtro métrico es suave; M12 inexistente cae a otra rosca",

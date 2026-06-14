@@ -826,8 +826,10 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             r_uniforme = r[r["medidas_cod"].apply(
                 lambda m: len(m) <= 1 or all(x.rstrip('"').strip() == medida_lim for x in m)
             )]
-            if not r_uniforme.empty:
-                r = r_uniforme
+            # Estricto: con una sola medida pedida, si solo quedan reductores
+            # (otro lado distinto), vaciar en vez de devolver un tamaño errado.
+            # Un reductor real se pide con dos medidas y va por la rama `medidas`.
+            r = r_uniforme
     return r
 
 def buscar_por_descripcion(palabras: list) -> pd.DataFrame:
