@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 *.log
+.pytest_cache/
 "app/data/~*"
 .env
 
