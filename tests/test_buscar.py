@@ -28,6 +28,14 @@ def test_angulo_inyectado_filtra_90():
     assert r["grupo"].str.contains("90").all()
 
 
+def test_bushing_reductor_dos_medidas():
+    """Caso 'bushing 20 mj -16 fj': BUSHING M JIC 1 1/4 x H JIC 1 → 2215-20-16.
+    El código 2215-20-16 da medidas_cod limpio ['1 1/4','1'] (sin espurios)."""
+    r = motor.buscar_por_tipo_medida_marca(
+        tipo="BUSHING MACHO JIC X HEMBRA JIC", medidas=["1 1/4", "1"])
+    assert r["codigo"].tolist() == ["2215-20-16"]
+
+
 def test_bsp_equivale_a_bspp():
     """tipo con BSP debe matchear el grupo nombrado con BSPP."""
     r = motor.buscar_por_tipo_medida_marca(tipo="ADAP MACHO JIC X MACHO BSP")

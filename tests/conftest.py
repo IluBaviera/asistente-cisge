@@ -82,6 +82,11 @@ _PAYLOAD = {"productos": [
     # ── ADAP 90° JIC×JIC (generico para tests de marca / angulo) ────
     _prod("099-16-16", "ADAP 90° MACHO JIC X HEMBRA JIC",
           'adap 90 m jic x h jic 1" x 1"', "DME", "ADAPTADORES I"),
+    # ── BUSHING reductor M JIC 1 1/4 x H JIC 1 (caso "bushing 20 mj -16 fj") ──
+    _prod("2215-20-16", "BUSHING MACHO JIC X HEMBRA JIC",
+          'bushing m jic 1 1/4" x h jic 1"', "LT", "ADAPTADORES I"),
+    _prod("2215-12-08", "BUSHING MACHO JIC X HEMBRA JIC",
+          'bushing m jic 3/4" x h jic 1/2"', "LT", "ADAPTADORES I"),
 ]}
 
 
