@@ -72,6 +72,22 @@ def test_b1_busqueda_sin_tipo_no_crashea():
     assert isinstance(r, pd.DataFrame)
 
 
+def test_b13_marca_sola_no_colapsa_a_ferrula():
+    """B13: buscar solo por marca NO debe colapsar a férrulas T/M.
+    Antes devolvía vacío (el filtro ferrula_tm se aplicaba siempre)."""
+    r = motor.buscar_por_tipo_medida_marca(marca="DME")
+    assert not r.empty
+    assert (r["marca"] == "DME").all()
+    # devuelve los productos DME, no solo (o ninguna) férrula T/M
+    assert set(r["codigo"]) == {"045-08-06", "050-08-08", "099-16-16"}
+
+
+def test_b13_ferrula_sigue_aplicando_tm_por_defecto():
+    """Contraprueba B13: una búsqueda de férrula sí aplica T/M por defecto."""
+    r = motor.buscar_por_tipo_medida_marca(tipo="FERRULA R2", medida="1/2")
+    assert r["codigo"].tolist() == ["03310-08"]  # la T/M, no la lisa 00210-08
+
+
 # ── C1 y C2: bugs confirmados, pendientes de fix (xfail) ──────────────────────
 
 def test_ferrula_por_medida_encuentra_tm():

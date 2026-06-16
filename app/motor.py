@@ -716,15 +716,19 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             r_kstd = r[~patron_d]
             if not r_kstd.empty:
                 r = r_kstd
-    # Ferrula T/M: "no"=lisa (excluir T/M); "si" o ""=T/M por defecto
-    if ferrula_tm == "no":
-        r_lisa = r[~r["grupo"].str.contains(r"T/M", na=False, case=False)]
-        if not r_lisa.empty:
-            r = r_lisa
-    else:
-        r_tm = r[r["grupo"].str.contains(r"T/M", na=False, case=False)]
-        if not r_tm.empty:
-            r = r_tm
+    # Ferrula T/M: "no"=lisa (excluir T/M); "si" o ""=T/M por defecto.
+    # Solo aplica si se busca una férrula: si no, una búsqueda sin tipo (ej.
+    # solo marca) se contaminaba colapsando a férrulas T/M y devolvía vacío.
+    _es_ferrula = bool(tipo) and tipo.upper().startswith("FERRULA")
+    if _es_ferrula:
+        if ferrula_tm == "no":
+            r_lisa = r[~r["grupo"].str.contains(r"T/M", na=False, case=False)]
+            if not r_lisa.empty:
+                r = r_lisa
+        else:
+            r_tm = r[r["grupo"].str.contains(r"T/M", na=False, case=False)]
+            if not r_tm.empty:
+                r = r_tm
     if linea:
         r = r[r["descripcion"].str.contains(linea, na=False, case=False)]
     if subtipo and subtipo in ("1SN", "2SN"):
