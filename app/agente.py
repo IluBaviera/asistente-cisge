@@ -52,7 +52,10 @@ _FAMILIAS_BASE_PREFIJOS = {
     "NIPLE", "VALVULA", "BRIDA", "CASCO", "REDUCCION", "TAPON",
     "PREARMADA", "PREAR ", "MAQUINA", "ABRAZADERA",
 }
-# Excluir subfamilias ADAPTADORES I/II: sus grupos son variantes de ADAP ya cubiertas por el vocab base
+# De ADAPTADORES I/II se excluyen SOLO los grupos "ADAP ..." (variantes ya
+# cubiertas por el vocab base ADAPTADOR). Los grupos con nombre propio de esa
+# subfamilia (TEE, BUSHING, PASAMURO, UNION, TUERCA, etc.) SÍ deben entrar al
+# vocabulario: si no, GPT no sabe que existen y los manda al ADAP más cercano.
 _SUBFAMILIAS_EXCLUIR_OTROS = {"ADAPTADORES I", "ADAPTADORES II"}
 _EXCLUIR_OTROS = {
     "ACCESORIOS", "ARANDELAS", "ORING", "SELLOS", "SELLO PARA ACOPLE DE GARRA",
@@ -66,7 +69,8 @@ _EXCLUIR_OTROS = {
     "SMART TWO", "HERRAMIENTAS", "PILOT", "TUBERÍA EQUIPO TESTEO",
 }
 _grupos_adap_subfam = set(
-    motor_df[motor_df["subfamilia"].isin(_SUBFAMILIAS_EXCLUIR_OTROS)]["grupo"].dropna().unique()
+    g for g in motor_df[motor_df["subfamilia"].isin(_SUBFAMILIAS_EXCLUIR_OTROS)]["grupo"].dropna().unique()
+    if g.upper().startswith("ADAP")
 )
 _tipos_otros_str = " | ".join(sorted([
     g for g in motor_df["grupo"].dropna().unique()
@@ -919,6 +923,7 @@ Tipos de manguera (norma SAE / código catálogo): {_tipos_manguera_str}
 Para mangueras: usa el nombre de grupo EXACTAMENTE como aparece en la lista anterior. Ejemplos: "MANGUERA DESCARGA ACEITE" → tipo="MANG DESCARGA ACEITE" | "MANGUERA R6" → tipo="R6" | "MANG R6" → tipo="MANG R6" | "MANGUERA R12" → tipo="R12" | "4SH" → tipo="4SH". Si el texto dice "MANGUERA X" y X aparece como nombre en la lista (ej "R6", "4SH"), usa ese nombre tal cual. NUNCA pongas solo "MANGUERA" si puedes identificar el tipo específico.
 Otros tipos de producto (grupos del catálogo CISGE): {_tipos_otros_str}
 Para productos que no encajan en las familias base (ESPIGA/FERRULA/ADAPTADOR/etc.) ni en mangueras: busca el grupo más cercano en la lista anterior y úsalo como tipo. Ej: "Union Escamada" → tipo="UNION ESCAMADA R12" | "camlock tipo A" → tipo=`CAMLOCK AL TIPO "A"` | "acople rapido" → tipo="ACOPLE RÁPIDO ISO A" | "manometro" → tipo="MANOMETRO AXIAL ACERO INOX" | "union hembra npt" → tipo="UNION HEMBRA NPT" (NUNCA "ESPIGA HEMBRA NPT").
+TEE (accesorio de 3 bocas): el nombre de grupo lleva el género por posición "X-Y-Z" (boca1-MEDIO-boca3), ej "TEE M-H-M JIC" = macho, hembra al MEDIO/central, macho. "medio"/"central"/"FJX central" = la boca del medio. Usa el grupo de la lista que coincida con el patrón de géneros y la rosca. Ej: "Adap. M. TEE JIC 6 - H. MEDIO -06" → tipo="TEE M-H-M JIC", medida="3/8" (las 3 bocas son 3/8). Ej: "Tee macho npt 1/2" → tipo="TEE MACHO NPT", medida="1/2".
 Si el OCR entregó una palabra incierta, elige el término más cercano de la lista y úsalo tal cual.
 
 Aliases (sinónimos, abreviaciones y errores OCR conocidos):
