@@ -98,19 +98,34 @@ def test_ferrula_por_medida_encuentra_tm():
     assert r["codigo"].tolist() == ["03310-08"]
 
 
-@pytest.mark.xfail(reason="C1: exclusión de reductores revertida (medidas_cod no fiable); "
-                          "requiere extracción de medidas por cola de guiones",
-                   strict=False)
-def test_c1_reductor_no_debe_fugar():
-    """C1 (pendiente): pedir 3/16 no debería devolver el reductor 1/4 x 3/16."""
-    r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA JIC", medida="3/16", angulo="90")
+def test_c1_par_uniforme_excluye_reductor_poblado():
+    """C1 resuelto vía campos: '3/16 x 3/16' (par_uniforme) sobre familia poblada
+    NO debe devolver el reductor 1/4 x 3/16 (med_rosca_1=1/4 != 3/16)."""
+    r = motor.buscar_por_tipo_medida_marca(
+        tipo="ESPIGA HEMBRA JIC", medida="3/16", angulo="90", par_uniforme=True)
     assert r.empty
 
 
-def test_c1_medida_uniforme_si_matchea():
-    """Pedir 3/4 (que sí existe uniforme) debe encontrarlo."""
-    r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA JIC", medida="3/4", angulo="90")
-    assert sorted(r["codigo"].tolist()) == ["26791-12-12"]
+def test_c1_par_uniforme_conserva_uniforme():
+    """Contraprueba: '3/4 x 3/4' (par_uniforme) sí devuelve el uniforme 12-12."""
+    r = motor.buscar_por_tipo_medida_marca(
+        tipo="ESPIGA HEMBRA JIC", medida="3/4", angulo="90", par_uniforme=True)
+    assert r["codigo"].tolist() == ["26791-12-12"]
+
+
+def test_par_uniforme_no_toca_productos_sin_campos():
+    """Seguridad: par_uniforme NO afecta productos sin campos poblados
+    (férrula sin med_*): sigue devolviendo su resultado normal."""
+    r = motor.buscar_por_tipo_medida_marca(
+        tipo="FERRULA R2", medida="1/2", par_uniforme=True)
+    assert r["codigo"].tolist() == ["03310-08"]
+
+
+def test_medida_simple_sin_par_uniforme_no_excluye():
+    """Una medida simple (no 'X x X') no activa la exclusión: '3/16' a secas
+    sigue matcheando el reductor por lado manguera (comportamiento permisivo)."""
+    r = motor.buscar_por_tipo_medida_marca(tipo="ESPIGA HEMBRA JIC", medida="3/16", angulo="90")
+    assert "26791-04-03" in r["codigo"].tolist()
 
 
 def test_c2_rosca_metrica_inexistente_no_fallthrough():

@@ -615,6 +615,9 @@ def _buscar_fila_imagen(parsed: dict, cantidad: int):
     medida     = _norm_medida(parsed.get("medida") or "") or None
     medidas_raw = parsed.get("medidas") or []
     medidas    = [_norm_medida(m) for m in medidas_raw]
+    # Par uniforme "X x X" (dos medidas iguales): se colapsa a medida única, pero
+    # se recuerda para que el motor descarte reductores en productos poblados.
+    par_uniforme = len(medidas) >= 2 and len(set(medidas)) == 1
     if medidas and len(set(medidas)) == 1:
         if not medida:
             medida = medidas[0]
@@ -637,6 +640,7 @@ def _buscar_fila_imagen(parsed: dict, cantidad: int):
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subfamilias=subfamilias, medidas=medidas or None,
         angulo=angulo, cola=cola, doble_hex=doble_hex, ferrula_tm=ferrula_tm,
+        par_uniforme=par_uniforme,
     )
     if resultados.empty:
         return None
@@ -661,6 +665,9 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     if medida:
         medida = _norm_medida(medida)
     medidas = [_norm_medida(m) for m in (parsed.get("medidas") or [])]
+    # Par uniforme "X x X" → se colapsa pero se recuerda para descartar reductores
+    # en productos poblados (campos med_*).
+    par_uniforme = len(medidas) >= 2 and len(set(medidas)) == 1
     # Si todas las medidas son iguales, colapsar a medida singular.
     # Evita que fittings de un solo tamaño (UNION ESCAMADA, CAMLOCK, etc.) fallen
     # cuando GPT emite medidas=["3/8","3/8"] pero el catálogo solo tiene medidas_cod=["3/8"].
@@ -697,6 +704,7 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subtipo=subtipo_ht, subfamilias=subfamilias, medidas=medidas or None,
         angulo=angulo, cola=cola, doble_hex=doble_hex, ferrula_tm=ferrula_tm,
+        par_uniforme=par_uniforme,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
 

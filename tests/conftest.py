@@ -36,7 +36,8 @@ finally:
 
 # ── Payload sintético: ~14 productos representativos ─────────────────────────
 def _prod(codigo, grupo, descripcion, marca, subfamilia, precio=10.0,
-          almacenes=None, unidad="UND"):
+          almacenes=None, unidad="UND",
+          med_manguera="", med_rosca_1="", med_rosca_2="", med_tubo=""):
     return {
         "codigo": codigo,
         "codigo_interno": codigo,
@@ -47,17 +48,24 @@ def _prod(codigo, grupo, descripcion, marca, subfamilia, precio=10.0,
         "almacenes": almacenes if almacenes is not None else {"Almacen Lima Centro": 10},
         "subfamilia": subfamilia,
         "grupo": grupo,
+        "med_manguera": med_manguera,
+        "med_rosca_1": med_rosca_1,
+        "med_rosca_2": med_rosca_2,
+        "med_tubo": med_tubo,
     }
 
 
 _PAYLOAD = {"productos": [
     # ── ESPIGA 90° HEMBRA JIC R2 (para C1 y test de ángulo) ──────────────────
     _prod("26791-04-04", "ESPIGA 90° HEMBRA JIC R2",
-          'espiga hembra jic 90° r1 / r2  1/4" x 1/4"', "LT", "ESPIGAS I"),
+          'espiga hembra jic 90° r1 / r2  1/4" x 1/4"', "LT", "ESPIGAS I",
+          med_rosca_1="1/4", med_manguera="1/4"),
     _prod("26791-04-03", "ESPIGA 90° HEMBRA JIC R2",
-          'espiga hembra jic 90° r1 / r2  1/4" x 3/16"', "LT", "ESPIGAS I"),
+          'espiga hembra jic 90° r1 / r2  1/4" x 3/16"', "LT", "ESPIGAS I",
+          med_rosca_1="1/4", med_manguera="3/16"),   # reductor poblado
     _prod("26791-12-12", "ESPIGA 90° HEMBRA JIC R2",
-          'espiga hembra jic 90° r2 / r12  3/4" x 3/4"', "LT", "ESPIGAS I"),
+          'espiga hembra jic 90° r2 / r12  3/4" x 3/4"', "LT", "ESPIGAS I",
+          med_rosca_1="3/4", med_manguera="3/4"),
     # ── ESPIGA HEMBRA JIC R2 recta (sin ángulo) ─────────────────────────────
     _prod("24791-12-12", "ESPIGA HEMBRA JIC R2",
           'espiga hembra jic r2 / r12  3/4" x 3/4"', "LT", "ESPIGAS I"),

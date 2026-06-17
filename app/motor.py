@@ -298,7 +298,8 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
     """
     _COLS = ["codigo", "codigo_interno", "descripcion", "marca",
              "precio", "unidad", "almacenes", "subfamilia", "grupo",
-             "tipo_cod", "medida_cod", "medidas_cod"]
+             "tipo_cod", "medida_cod", "medidas_cod",
+             "med_manguera", "med_rosca_1", "med_rosca_2", "med_tubo"]
     _EMPTY = pd.DataFrame(columns=_COLS)
     productos = data.get("productos", [])
     if not productos:
@@ -315,6 +316,12 @@ def _build_df_from_api(data: dict) -> pd.DataFrame:
             "almacenes":      p.get("almacenes") or {},
             "subfamilia":     str(p.get("subfamilia", "")).strip().upper(),
             "grupo":          str(p.get("grupo", "")).replace("\xa0", " ").replace("\ufffd", "\u00b0").strip().upper(),  # NBSP->espacio, U+FFFD->grado (encoding Navasoft)
+            # Medidas estructuradas (campos personalizados Navasoft, fiables).
+            # Vac\u00edo en productos a\u00fan no poblados \u2192 el motor cae al comportamiento por medida_cod.
+            "med_manguera":   str(p.get("med_manguera", "")).strip(),
+            "med_rosca_1":    str(p.get("med_rosca_1", "")).strip(),
+            "med_rosca_2":    str(p.get("med_rosca_2", "")).strip(),
+            "med_tubo":       str(p.get("med_tubo", "")).strip(),
         }
         for p in productos
         if str(p.get("codigo", "")).strip()
@@ -599,7 +606,7 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None, doble_hex=False, ferrula_tm="") -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None, doble_hex=False, ferrula_tm="", par_uniforme=False) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     medidas_aplicadas = False
@@ -839,6 +846,26 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
             # primero una extracción de medidas fiable; revertido tras romper férrulas.
             if not r_uniforme.empty:
                 r = r_uniforme
+
+    # Exclusión de reductores FIABLE (campos estructurados med_*).
+    # Solo cuando la consulta fue un par uniforme "X x X" (par_uniforme=True) y
+    # sobre productos ya poblados: si sus medidas de rol no son TODAS == medida,
+    # es un reductor y se descarta. Productos sin campos pasan intactos (no rompe
+    # familias no migradas). Resuelve C1 sin depender de medidas_cod.
+    if par_uniforme and medida and not r.empty:
+        medida_u = medida.strip().rstrip('"').strip()
+
+        def _uniforme_ok(row):
+            reales = [str(row["med_rosca_1"]).strip(),
+                      str(row["med_rosca_2"]).strip(),
+                      str(row["med_manguera"]).strip()]
+            reales = [x for x in reales if x]
+            if not reales:
+                return True  # producto sin campos fiables → no se filtra
+            return all(x.rstrip('"').strip() == medida_u for x in reales)
+
+        r = r[r.apply(_uniforme_ok, axis=1)]  # estricto: si solo quedaban reductores poblados → vacío
+
     return r
 
 def buscar_por_descripcion(palabras: list) -> pd.DataFrame:
