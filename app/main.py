@@ -63,19 +63,15 @@ def _firma_valida(body: bytes, signature_header: str) -> bool:
     return hmac.compare_digest(signature_header[7:], esperada)
 
 # ── whitelist fase de pruebas ────────────────────
-# Env var NUMEROS_PERMITIDOS separada por comas; agregar un vendedor ya no
-# requiere deploy. Fallback a la lista original si la variable no existe.
-_NUMEROS_DEFAULT = {
-    "51943584251",   # Pablo (pruebas)
-    "51981234344",   # Eduardo (vendedor)
-    "51958678366",   # Guillermo (vendedor)
-    "51982207673",   # Carlos Toledo (vendedor)
+# Única fuente: env var NUMEROS_PERMITIDOS (números separados por comas).
+# Sin lista hardcodeada: si la variable falta, no se autoriza a nadie
+# (fail-closed, lo correcto para una whitelist). El alias de cada número
+# se lleva fuera del código (memoria del proyecto / futura tabla Vendedor).
+NUMEROS_PERMITIDOS = {
+    n.strip() for n in os.getenv("NUMEROS_PERMITIDOS", "").split(",") if n.strip()
 }
-_numeros_env = os.getenv("NUMEROS_PERMITIDOS", "")
-NUMEROS_PERMITIDOS = (
-    {n.strip() for n in _numeros_env.split(",") if n.strip()}
-    if _numeros_env.strip() else _NUMEROS_DEFAULT
-)
+if not NUMEROS_PERMITIDOS:
+    logger.warning("NUMEROS_PERMITIDOS no configurada — ningún número autorizado")
 
 # ── deduplicación de mensajes (LRU: expulsa los más antiguos, no todo de golpe) ──
 mensajes_procesados: dict = {}   # dict preserva orden de inserción
