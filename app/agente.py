@@ -359,20 +359,20 @@ _MSG_ERROR_CONEXION = (
     "Disculpa los inconvenientes."
 )
 
-async def agente_cisge(mensaje: str, numero_wa: str) -> str:
+async def agente_cisge(mensaje: str, numero_wa: str, nombre: str = "") -> str:
     """E1 código exacto → E2 prefijo → GPT parser → E3 campos → E4 GPT."""
     try:
-        return await _agente_cisge_impl(mensaje, numero_wa)
+        return await _agente_cisge_impl(mensaje, numero_wa, nombre)
     except Exception as e:
         logger.error(f"agente [{numero_wa}]: error inesperado: {type(e).__name__}: {e}", exc_info=True)
         return _MSG_ERROR_CONEXION
 
 
-async def _agente_cisge_impl(mensaje: str, numero_wa: str) -> str:
+async def _agente_cisge_impl(mensaje: str, numero_wa: str, nombre: str = "") -> str:
     # ── Pre-check: intención de marcas → GPT directo ──────────────────────────
     if _INTENT_MARCAS.search(mensaje):
         logger.info(f"agente [{numero_wa}]: pregunta de marcas → GPT directo")
-        respuesta = await _gpt_conversacional(mensaje, numero_wa)
+        respuesta = await _gpt_conversacional(mensaje, numero_wa, nombre)
         guardar_mensajes(numero_wa, mensaje, respuesta)
         return respuesta
 
@@ -500,7 +500,7 @@ async def _agente_cisge_impl(mensaje: str, numero_wa: str) -> str:
     logger.info(f"agente [{numero_wa}]: parser → {parsed}")
 
     if parsed.get("es_saludo"):
-        respuesta = await _gpt_conversacional(mensaje, numero_wa)
+        respuesta = await _gpt_conversacional(mensaje, numero_wa, nombre)
         guardar_mensajes(numero_wa, mensaje, respuesta)
         return respuesta
 
@@ -513,7 +513,7 @@ async def _agente_cisge_impl(mensaje: str, numero_wa: str) -> str:
 
     # ── E4: GPT conversacional con tools ──────────────────────────────────────
     logger.info(f"agente [{numero_wa}]: E4 GPT conversacional")
-    respuesta = await _gpt_conversacional(mensaje, numero_wa)
+    respuesta = await _gpt_conversacional(mensaje, numero_wa, nombre)
     guardar_mensajes(numero_wa, mensaje, respuesta)
     return respuesta
 
@@ -742,10 +742,17 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     )
 
 
-async def _gpt_conversacional(mensaje: str, numero_wa: str) -> str:
+async def _gpt_conversacional(mensaje: str, numero_wa: str, nombre: str = "") -> str:
     """E4: GPT con tools para saludos y consultas que E3 no pudo resolver."""
     historial = cargar_historial(numero_wa)
-    messages = [{"role": "system", "content": _AGENT_PROMPT}]
+    prompt = _AGENT_PROMPT
+    if nombre:
+        # Solo el primer nombre, para un saludo natural ("Hola, Eduardo 👋").
+        primer_nombre = nombre.strip().split()[0]
+        prompt += (f"\n\nEl vendedor con quien hablas se llama {primer_nombre}. "
+                   f"Cuando lo saludes, salúdalo por su nombre. No repitas su nombre "
+                   f"en cada mensaje, solo cuando sea natural.")
+    messages = [{"role": "system", "content": prompt}]
     messages.extend(historial)
     messages.append({"role": "user", "content": mensaje})
     return await _llamar_gpt(messages)

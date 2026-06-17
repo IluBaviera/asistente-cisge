@@ -200,7 +200,7 @@ async def _procesar_mensaje(data: dict):
 
         if tipo == "text":
             mensaje  = msg["text"]["body"]
-            respuesta = await agente_cisge(mensaje, numero)
+            respuesta = await agente_cisge(mensaje, numero, nombre)
         elif tipo == "image":
             image_id  = msg["image"]["id"]
             respuesta = await procesar_imagen_whatsapp(image_id, numero)
