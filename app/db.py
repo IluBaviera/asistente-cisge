@@ -18,6 +18,21 @@ def cargar_historial(numero_wa: str) -> list:
         return []
 
 
+def cargar_vendedores() -> dict:
+    """Devuelve {numero_wa: nombre} de los vendedores activos (tabla Vendedor
+    vía API). Devuelve {} si falla — el llamador cae a la whitelist de env var."""
+    try:
+        r = httpx.get(f"{_BASE}/vendedores", timeout=5)
+        r.raise_for_status()
+        vendedores = r.json().get("vendedores", [])
+        mapa = {v["numero_wa"]: v["nombre"] for v in vendedores if v.get("numero_wa")}
+        logger.info(f"db.cargar_vendedores: {len(mapa)} vendedores activos")
+        return mapa
+    except Exception as e:
+        logger.warning(f"db.cargar_vendedores falló: {e}")
+        return {}
+
+
 def guardar_mensajes(numero_wa: str, user_msg: str, assistant_msg: str) -> None:
     try:
         r = httpx.post(

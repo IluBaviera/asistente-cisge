@@ -5,6 +5,7 @@ from app.motor import consultar
 from app.motor import log_consultas
 from app.motor import refresh_stock_loop
 from app.agente import agente_cisge, procesar_imagen_whatsapp
+from app.db import cargar_vendedores
 import asyncio
 import hashlib
 import hmac
@@ -39,10 +40,12 @@ async def _keep_alive():
                 logger.info(f"Keep-alive ping: {r.status_code}")
         except Exception as e:
             logger.warning(f"Keep-alive ping failed: {e}")
+        await _refrescar_vendedores()   # refrescar whitelist desde BD cada ciclo
         await asyncio.sleep(600)  # 10 minutos
 
 @app.on_event("startup")
 async def startup_event():
+    await _refrescar_vendedores()       # carga inicial antes de atender mensajes
     _crear_task(_keep_alive())
     _crear_task(refresh_stock_loop())
 
@@ -62,16 +65,30 @@ def _firma_valida(body: bytes, signature_header: str) -> bool:
     esperada = hmac.new(META_APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(signature_header[7:], esperada)
 
-# ── whitelist fase de pruebas ────────────────────
-# Única fuente: env var NUMEROS_PERMITIDOS (números separados por comas).
-# Sin lista hardcodeada: si la variable falta, no se autoriza a nadie
-# (fail-closed, lo correcto para una whitelist). El alias de cada número
-# se lleva fuera del código (memoria del proyecto / futura tabla Vendedor).
-NUMEROS_PERMITIDOS = {
+# ── whitelist de vendedores ───────────────────────
+# Fuente primaria: tabla Vendedor en BdAsistente (vía API /vendedores),
+# refrescada periódicamente → alta/baja sin tocar código ni env var.
+# Fallback: env var NUMEROS_PERMITIDOS, por si la BD no responde al arrancar.
+_NUMEROS_ENV = {
     n.strip() for n in os.getenv("NUMEROS_PERMITIDOS", "").split(",") if n.strip()
 }
+VENDEDORES: dict = {}                          # numero_wa -> nombre (de la BD)
+NUMEROS_PERMITIDOS: set = set(_NUMEROS_ENV)    # base inicial (fallback env var)
 if not NUMEROS_PERMITIDOS:
-    logger.warning("NUMEROS_PERMITIDOS no configurada — ningún número autorizado")
+    logger.warning("NUMEROS_PERMITIDOS (fallback) vacía — la whitelist dependerá de la tabla Vendedor")
+
+
+async def _refrescar_vendedores():
+    """Carga whitelist + nombres desde la tabla Vendedor (vía API). Si la BD no
+    responde, conserva la whitelist actual (fallback env var) — nunca la vacía."""
+    global VENDEDORES, NUMEROS_PERMITIDOS
+    mapa = await asyncio.to_thread(cargar_vendedores)
+    if mapa:
+        VENDEDORES = mapa
+        NUMEROS_PERMITIDOS = set(mapa.keys())
+        logger.info(f"Whitelist desde BD: {len(mapa)} vendedores activos")
+    else:
+        logger.warning("Vendedores no disponibles en BD — se mantiene whitelist previa/env var")
 
 # ── deduplicación de mensajes (LRU: expulsa los más antiguos, no todo de golpe) ──
 mensajes_procesados: dict = {}   # dict preserva orden de inserción
@@ -175,6 +192,9 @@ async def _procesar_mensaje(data: dict):
 
         if _ya_procesado(msg_id):
             return
+
+        nombre = VENDEDORES.get(numero, "")
+        logger.info(f"Mensaje de {nombre or numero[-4:]} ({numero}) tipo={tipo}")
 
         await marcar_leido(msg_id)
 
