@@ -888,6 +888,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
             rows_excel.append({
                 "linea_original": linea_orig,
                 "codigo":         fila_motor["codigo"],
+                "marca":          fila_motor["marca"],
                 "descripcion":    fila_motor["descripcion"].title(),
                 "cantidad":       cantidad,
                 "precio_unit":    precio_u,
@@ -1070,28 +1071,33 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
     Filas reconocidas incluyen codigo/descripcion/precio; no reconocidas solo linea_original."""
     import io
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Cotizacion CISGE"
 
-    headers = ["N°", "Línea Original", "Código CISGE", "Descripción", "Cantidad",
-               "Precio Unit. USD", "Subtotal USD", "IGV (18%)", "Total USD"]
+    headers = ["N°", "Línea Original", "Código CISGE", "Marca", "Descripción",
+               "Cantidad", "Precio Unit. USD", "Subtotal USD", "IGV (18%)", "Total USD"]
     ws.append(headers)
+    NCOL = len(headers)   # 10
 
     fill_header  = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     fill_nf      = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")  # amarillo claro
+    fill_tot     = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")  # azul claro
     font_header  = Font(color="FFFFFF", bold=True)
     font_nf      = Font(italic=True, color="999999")
+    font_tot     = Font(bold=True)
     center       = Alignment(horizontal="center")
     num_fmt      = '#,##0.00'
+    borde_top    = Border(top=Side(style="thin", color="1F4E79"))
 
     for cell in ws[1]:
         cell.fill = fill_header
         cell.font = font_header
         cell.alignment = center
 
+    tot_cant = tot_sub = tot_igv = tot_total = 0
     for n, item in enumerate(rows, start=1):
         row_num = ws.max_row + 1
         if item.get("encontrado"):
@@ -1099,6 +1105,7 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
                 n,
                 item["linea_original"],
                 item["codigo"],
+                item.get("marca", ""),
                 item["descripcion"],
                 item["cantidad"],
                 item["precio_unit"],
@@ -1107,22 +1114,39 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
                 item["total"],
             ])
             ws.cell(row=row_num, column=1).alignment = center
-            for col in range(6, 10):   # columnas F-I: precios
+            for col in range(7, 11):   # G-J: montos (precio, subtotal, igv, total)
                 ws.cell(row=row_num, column=col).number_format = num_fmt
+            tot_cant  += item["cantidad"]
+            tot_sub   += item["subtotal"]
+            tot_igv   += item["igv"]
+            tot_total += item["total"]
         else:
             nota = item.get("nota", "No encontrado en catálogo")
-            ws.append([n, item["linea_original"], "—", nota, None, None, None, None, None])
-            for col in range(1, 10):
+            ws.append([n, item["linea_original"], "—", "", nota, None, None, None, None, None])
+            for col in range(1, NCOL + 1):
                 ws.cell(row=row_num, column=col).fill = fill_nf
                 ws.cell(row=row_num, column=col).font = font_nf
             ws.cell(row=row_num, column=1).alignment = center
 
+    # ── Fila de totales generales ──────────────────────────────────────────────
+    ws.append(["", "", "", "", "TOTALES",
+               tot_cant, None, round(tot_sub, 2), round(tot_igv, 2), round(tot_total, 2)])
+    rt = ws.max_row
+    for col in range(1, NCOL + 1):
+        c = ws.cell(row=rt, column=col)
+        c.font = font_tot
+        c.fill = fill_tot
+        c.border = borde_top
+    for col in (8, 9, 10):   # H-J: montos sumados
+        ws.cell(row=rt, column=col).number_format = num_fmt
+
     ws.column_dimensions["A"].width = 6
     ws.column_dimensions["B"].width = 35
     ws.column_dimensions["C"].width = 20
-    ws.column_dimensions["D"].width = 40
-    ws.column_dimensions["E"].width = 12
-    for col in ("F", "G", "H", "I"):
+    ws.column_dimensions["D"].width = 16   # Marca
+    ws.column_dimensions["E"].width = 40   # Descripción
+    ws.column_dimensions["F"].width = 12   # Cantidad
+    for col in ("G", "H", "I", "J"):
         ws.column_dimensions[col].width = 17
 
     buf = io.BytesIO()
