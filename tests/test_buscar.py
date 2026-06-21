@@ -28,6 +28,36 @@ def test_angulo_inyectado_filtra_90():
     assert r["grupo"].str.contains("90").all()
 
 
+def test_tubo_metrica_filtra_por_med_tubo():
+    """Búsqueda por tubo (TUB 15): solo métricas con med_tubo='15'."""
+    r = motor.buscar_por_tipo_medida_marca(tubo="15")
+    assert set(r["codigo"]) == {"20491T-22-08", "20491T-22-06"}
+
+
+def test_tubo_mas_manguera_afina():
+    """TUB 15 + manguera 1/2 → el de hose 1/2."""
+    r = motor.buscar_por_tipo_medida_marca(tubo="15", medidas=["1/2"])
+    assert r["codigo"].tolist() == ["20491T-22-08"]
+
+
+def test_tubo_acepta_sufijo_mm():
+    """'15mm' se normaliza a '15'."""
+    r = motor.buscar_por_tipo_medida_marca(tubo="15mm")
+    assert not r.empty
+    assert (r["med_tubo"] == "15").all()
+
+
+def test_tubo_inexistente_vacio():
+    r = motor.buscar_por_tipo_medida_marca(tubo="99")
+    assert r.empty
+
+
+def test_tubo_no_afecta_productos_sin_med_tubo():
+    """Un producto sin med_tubo (espiga JIC) nunca sale en una búsqueda por tubo."""
+    r = motor.buscar_por_tipo_medida_marca(tubo="15")
+    assert "26791-12-12" not in r["codigo"].tolist()
+
+
 def test_bushing_reductor_dos_medidas():
     """Caso 'bushing 20 mj -16 fj': BUSHING M JIC 1 1/4 x H JIC 1 → 2215-20-16.
     El código 2215-20-16 da medidas_cod limpio ['1 1/4','1'] (sin espurios)."""

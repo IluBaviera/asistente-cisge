@@ -293,6 +293,7 @@ Extrae del texto estos campos y devuelve SOLO JSON válido sin texto adicional:
   "cola": "",
   "doble_hex": false,
   "ferrula_tm": "",
+  "tubo": "",
   "es_saludo": false
 }
 subfamilias: lista de subfamilias ERP posibles: "MANGUERAS HIDRAULICAS", "ESPIGAS I", "ESPIGAS II", "FERRULAS", "ADAPTADORES I", "ADAPTADORES II", "VALVULAS", etc.
@@ -306,6 +307,7 @@ angulo: ángulo de la conexión — "45" si dice 45°/45 grados/(45°)/(45), "90
 cola: tipo de cola para espigas, bridas y prearmadas — "R12" si dice larga/R12, "INTERLOCK" si dice interlock/R13/R15, "" si no especifica (default R2/corta). Vacío para otros productos.
 doble_hex: true si el usuario pide "doble hexágono", "c/hex", o si en una abreviación de espiga hay "G" como modificador. Aplica a CUALQUIER tipo de espiga. Ej: "Esp. H.G. JIC" → G=giratoria=doble hex, doble_hex=true, tipo="ESPIGA HEMBRA JIC". Ej: "Esp. H.G.A.P" → doble_hex=true, tipo="ESPIGA HEMBRA ORFS A/P". Default false.
 ferrula_tm: solo para ferrulas — "si" por defecto (T/M tipo manulli); "no" SOLO si el usuario dice explícitamente "lisa" o "00210".
+tubo: solo para métricas/DIN — número del tubo si lo menciona ("TUB 15", "tubo 15", "DIN tubo 15" → "15"). El tubo equivale al hilo (M22↔tubo 15). Vacío si no se menciona.
 es_saludo: true si el mensaje es un saludo o consulta no relacionada con productos
 Para ferrulas: el tipo debe incluir el subtipo SAE (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). Aliases: 1sn/2sn/at = R2, 4SH/4SP = R12, R13/R15/interlock = R13-R15, t/m/manulli/tipo manulli = ferrula_tm="si" (default). lisa/00210 = ferrula_tm="no".
 Medidas nominales (código 2 dígitos pegado al tipo → pulgadas): 02→1/8 | 03→3/16 | 04→1/4 | 05→5/16 | 06→3/8 | 08→1/2 | 10→5/8 | 12→3/4 | 14→7/8 | 16→1 | 20→1 1/4 | 24→1 1/2 | 32→2 — Ej: "JIC16"=1", "NPT08"=1/2". IMPORTANTE: NO redondees medidas al tamaño más cercano — si el usuario pide 3/16", el campo medida debe ser "3/16", no "1/4".
@@ -631,16 +633,17 @@ def _buscar_fila_imagen(parsed: dict, cantidad: int):
     cola       = parsed.get("cola") or None
     doble_hex  = bool(parsed.get("doble_hex"))
     ferrula_tm = parsed.get("ferrula_tm") or ""
+    tubo       = parsed.get("tubo") or None
     subfamilias = _validar_subfamilias(parsed.get("subfamilias") or [])
 
-    if not any([tipo, medida, marca, subfamilias]):
+    if not any([tipo, medida, marca, subfamilias, tubo]):
         return None
 
     resultados = buscar_por_tipo_medida_marca(
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subfamilias=subfamilias, medidas=medidas or None,
         angulo=angulo, cola=cola, doble_hex=doble_hex, ferrula_tm=ferrula_tm,
-        par_uniforme=par_uniforme,
+        par_uniforme=par_uniforme, tubo=tubo,
     )
     if resultados.empty:
         return None
@@ -685,12 +688,13 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     cola        = parsed.get("cola") or None
     doble_hex   = bool(parsed.get("doble_hex"))
     ferrula_tm  = parsed.get("ferrula_tm") or ""
+    tubo        = parsed.get("tubo") or None
     subfamilias_raw = parsed.get("subfamilias") or []
     subfamilias = _validar_subfamilias(subfamilias_raw)
     if subfamilias_raw and subfamilias_raw != (subfamilias or []):
         logger.info(f"E3: subfamilias filtradas: {subfamilias_raw} → {subfamilias}")
 
-    if not any([tipo, medida, marca, subfamilias]):
+    if not any([tipo, medida, marca, subfamilias, tubo]):
         logger.info("E3: sin campos suficientes para buscar")
         return ""
 
@@ -698,13 +702,13 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
     logger.info(
         f"E3: buscar_por_tipo_medida_marca("
         f"tipo={tipo!r}, medida={medida!r}, medidas={medidas}, marca={marca!r}, "
-        f"presion={presion!r}, angulo={angulo!r}, cola={cola!r}, subfamilias={subfamilias})"
+        f"presion={presion!r}, angulo={angulo!r}, cola={cola!r}, tubo={tubo!r}, subfamilias={subfamilias})"
     )
     resultados = buscar_por_tipo_medida_marca(
         tipo=tipo, medida=medida, marca=marca, presion=presion,
         subtipo=subtipo_ht, subfamilias=subfamilias, medidas=medidas or None,
         angulo=angulo, cola=cola, doble_hex=doble_hex, ferrula_tm=ferrula_tm,
-        par_uniforme=par_uniforme,
+        par_uniforme=par_uniforme, tubo=tubo,
     )
     logger.info(f"E3: DataFrame → {len(resultados)} filas")
 
@@ -982,6 +986,7 @@ Espigas métricas (LIVIANA = métrica liviana, PESADA = métrica pesada — son 
 - tipo debe incluir "MM": "ESPIGA HEMBRA MM LIVIANA", "ESPIGA MACHO MM LIVIANA", "ESPIGA HEMBRA MM PESADA", etc.
 - medida: diámetro métrico en formato "M12", "M14", "M18", etc. NO aplicar tabla nominal SAE (M20 ≠ 1¼"; M20 es el hilo, va tal cual). Ignorar pitch (x1.5).
 - medidas: si hay un tamaño de manguera al final (ej: "-06", "1/2", "3/4"), extraerlo en medidas[]. Ej: "M20 -06" → medida="M20", medidas=["06"]. Ej: "M18 1/2" → medida="M18", medidas=["1/2"].
+- tubo: si la línea menciona el TUBO DIN ("TUB 15", "tubo 15", "DIN tubo 15"), extrae SOLO el número en el campo tubo (ej: "15"). El tubo equivale al hilo (M22↔tubo 15); puede venir en lugar del hilo o además. Ej: "TERM 90 DIN 22 TUB 15 X 1/2" → tipo="ESPIGA 90° HEMBRA MM LIVIANA", medida="M22", tubo="15", medidas=["1/2"], angulo="90".
 - angulo: si hay 90 o 45 al final, extraerlo normalmente.
 - NO poner M12/M14 en marca.
 Para ferrulas: el tipo debe incluir el subtipo SAE si aparece (ej: "FERRULA R1", "FERRULA R2", "FERRULA R12"). No dejar solo "FERRULA" si hay un subtipo en la línea.
@@ -994,7 +999,7 @@ Subfamilias válidas: "ESPIGAS I", "ESPIGAS II", "ADAPTADORES I", "ADAPTADORES I
 "NIPLES", "CAMLOCK", "BRIDAS", "TUBERIAS HIDRAULICAS", "PREARMADAS", "MANOMETROS"
 
 Devuelve SOLO un objeto JSON con campo "items" que contiene el array. Cada elemento:
-{{"linea_original":"texto como aparece","codigo":"","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","doble_hex":false,"ferrula_tm":"si","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
+{{"linea_original":"texto como aparece","codigo":"","tipo":"ESPIGA HEMBRA ORFS","medida":"1","medidas":[],"marca":"","cantidad":50,"angulo":"","cola":"","doble_hex":false,"ferrula_tm":"si","tubo":"","subfamilias":["ESPIGAS I","ESPIGAS II"]}}
 codigo: si la línea contiene explícitamente un código de catálogo CISGE (alfanumérico con guiones, ej: DCA-10L, QF-R1-1/2, OR-SHH-19, 26711-12-12), extraerlo aquí tal cual. Si no hay código explícito, dejar vacío.
 Formato: {{"items": [{{...}}, {{...}}]}}
 

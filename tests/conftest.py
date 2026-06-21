@@ -95,6 +95,16 @@ _PAYLOAD = {"productos": [
           'bushing m jic 1 1/4" x h jic 1"', "LT", "ADAPTADORES I"),
     _prod("2215-12-08", "BUSHING MACHO JIC X HEMBRA JIC",
           'bushing m jic 3/4" x h jic 1/2"', "LT", "ADAPTADORES I"),
+    # ── Métricas 90° liviana pobladas (med_tubo) para test de búsqueda por tubo ──
+    _prod("20491T-22-08", "ESPIGA 90° HEMBRA MM LIVIANA R2",
+          'espiga 90° hembra metrica liviana r2 / r12 m22 x 1/2"', "LT", "ESPIGAS I",
+          med_rosca_1="M22x1.5", med_manguera="1/2", med_tubo="15"),
+    _prod("20491T-22-06", "ESPIGA 90° HEMBRA MM LIVIANA R2",
+          'espiga 90° hembra metrica liviana r2 / r12 m22 x 3/8"', "LT", "ESPIGAS I",
+          med_rosca_1="M22x1.5", med_manguera="3/8", med_tubo="15"),
+    _prod("20491T-18-08", "ESPIGA 90° HEMBRA MM LIVIANA R2",
+          'espiga 90° hembra metrica liviana r2 / r12 m18 x 1/2"', "LT", "ESPIGAS I",
+          med_rosca_1="M18x1.5", med_manguera="1/2", med_tubo="12"),
 ]}
 
 

@@ -606,7 +606,7 @@ def buscar_por_codigo_prefijo(texto: str) -> pd.DataFrame:
     """Búsqueda por prefijo de código (case-insensitive)."""
     return df[df["codigo"].str.upper().str.startswith(texto.upper().strip(), na=False)]
 
-def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None, doble_hex=False, ferrula_tm="", par_uniforme=False) -> pd.DataFrame:
+def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=None, linea=None, subtipo=None, superficie=None, subfamilias=None, medidas=None, angulo=None, cola=None, doble_hex=False, ferrula_tm="", par_uniforme=False, tubo=None) -> pd.DataFrame:
     """Búsqueda flexible por tipo, medida y/o marca."""
     r = df.copy()
     medidas_aplicadas = False
@@ -767,6 +767,22 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         r = r[r["descripcion"].str.contains("corrugada", na=False, case=False)]
     elif superficie == "lisa":
         r = r[~r["descripcion"].str.contains("corrugada", na=False, case=False)]
+    # Filtro por TUBO (DIN, campo estructurado med_tubo). Solo matchea productos
+    # poblados (métricas) → aditivo, no afecta familias sin med_tubo. El hilo es
+    # redundante con el tubo, así que se consume `medida` (M22) tras filtrar.
+    if tubo:
+        tn = str(tubo).strip().lower().replace("mm", "").strip()
+        r = r[r["med_tubo"].astype(str).str.strip() == tn]
+        medida = None
+        if medidas and not medidas_aplicadas and len(medidas) == 1:
+            hm = medidas[0].strip().rstrip('"').strip()
+            r_h = r[r["med_manguera"].astype(str).str.strip().str.rstrip('"').str.strip() == hm]
+            if not r_h.empty:
+                r = r_h
+            else:
+                return r_h  # tubo+manguera sin match → vacío
+            medidas_aplicadas = True
+
     # Hilo métrico MM LIVIANA / MM PESADA — M12/M14/M18 van en descripción, no en medida_cod
     _es_metrica = tipo and re.search(r"MM\s+(LIVIANA|PESADA)", tipo.upper())
     if _es_metrica and medida and re.match(r"^M\d+$", medida.strip().upper()):
