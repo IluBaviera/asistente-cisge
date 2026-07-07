@@ -893,6 +893,28 @@ def buscar_por_descripcion(palabras: list) -> pd.DataFrame:
 
 # ─── INTERPRETACIÓN DE LÍNEA ──────────────────────────────────────────────────
 
+def sanitizar_marca(marca: str, texto: str) -> str:
+    """Descarta una 'marca' espuria tomada del código interno del vendedor.
+
+    Dos señales, sin bloquear ninguna marca real del catálogo:
+    - 'S/M' (Sin Marca) explícito en la línea → marca vacía.
+    - La marca aparece SOLO pegada a un código (ej 'HP-22070004') y nunca suelta
+      → es el prefijo del código, no la marca (aunque 'HP' sea marca real).
+    """
+    if not marca:
+        return marca or ""
+    t = (texto or "").lower()
+    # 'S/M' = Sin Marca (notación comercial peruana): línea sin marca declarada.
+    if re.search(r'\bs\s*/\s*m\b', t):
+        return ""
+    m = re.escape(marca.lower())
+    pegada = re.search(rf'\b{m}-?\d{{4,}}\b', t)          # hp-22070004 / hp22070004
+    suelta = re.search(rf'\b{m}\b(?!\s*-?\d{{4,}})', t)    # 'hp' como token propio
+    if pegada and not suelta:
+        return ""
+    return marca
+
+
 def interpretar_linea(texto: str) -> tuple:
     """
     Extrae (marca, tipo, medida, color, cantidad, presion) del texto libre del cliente.
@@ -947,6 +969,9 @@ def interpretar_linea(texto: str) -> tuple:
             if re.search(rf'\b{re.escape(alias_din)}\b', texto_lo):
                 marca = _aliases_marcas[alias_din]
                 break
+
+    # El prefijo del código del vendedor (HP-22070004) o 'S/M' no es marca
+    marca = sanitizar_marca(marca, texto) or None
 
     # ── Color/variante ────────────────────────────────────────────────────────
     color = None

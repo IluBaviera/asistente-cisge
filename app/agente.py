@@ -23,6 +23,7 @@ from app.motor import (
     _stock_total,
     _aliases_marcas,
     MEDIDA_NOMINAL,
+    sanitizar_marca,
 )
 
 logger = logging.getLogger(__name__)
@@ -502,6 +503,9 @@ async def _agente_cisge_impl(mensaje: str, numero_wa: str, nombre: str = "") -> 
                 parsed["marca"] = _aliases_marcas[alias]
                 break
 
+    # El prefijo del código del vendedor (HP-22070004) o 'S/M' no es marca
+    parsed["marca"] = sanitizar_marca(parsed.get("marca") or "", mensaje)
+
     logger.info(f"agente [{numero_wa}]: parser → {parsed}")
 
     if parsed.get("es_saludo"):
@@ -630,7 +634,8 @@ def _buscar_fila_imagen(parsed: dict, cantidad: int):
         elif medidas[0] == medida:  # valor redundante — ya está en medida
             medidas = []
         # else: medidas[0] distinto de medida (ej: medida="M16", medidas=["3/8"]) → conservar ambos
-    marca      = parsed.get("marca") or None
+    # El prefijo del código del vendedor (HP-22070004) o 'S/M' no es marca
+    marca      = sanitizar_marca(parsed.get("marca") or "", parsed.get("linea_original", "")) or None
     presion    = parsed.get("presion") or None
     angulo     = parsed.get("angulo") or None
     cola       = parsed.get("cola") or None
@@ -684,7 +689,8 @@ def _buscar_con_parsed(parsed: dict, imagen_cantidad: int | None = None) -> str:
         elif medidas[0] == medida:  # valor redundante — ya está en medida
             medidas = []
         # else: medidas[0] distinto de medida (ej: medida="M16", medidas=["3/8"]) → conservar ambos
-    marca       = parsed.get("marca") or None
+    # El prefijo del código del vendedor (HP-22070004) o 'S/M' no es marca
+    marca       = sanitizar_marca(parsed.get("marca") or "", parsed.get("linea_original", "")) or None
     presion     = parsed.get("presion") or None
     color       = parsed.get("color") or None
     angulo      = parsed.get("angulo") or None

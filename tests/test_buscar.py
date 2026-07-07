@@ -85,6 +85,32 @@ def test_marca_inexistente_devuelve_vacio():
     assert r.empty
 
 
+# ── sanitizar_marca: prefijo de código del vendedor no es marca ──────────────
+
+def test_sanitizar_marca_prefijo_codigo_se_descarta():
+    """'HP' del código 'HP-22070004' no es marca (aunque HP sea marca real)."""
+    assert motor.sanitizar_marca("HP", '1 HP-22070004 S/M FERRULA R7 1/4" 50 UND') == ""
+
+
+def test_sanitizar_marca_sm_fuerza_sin_marca():
+    """'S/M' (Sin Marca) explícito → marca vacía."""
+    assert motor.sanitizar_marca("LT", "10 ZZ-1 S/M UNION ESPIGA 1/2") == ""
+
+
+def test_sanitizar_marca_real_suelta_se_conserva():
+    """Una marca mencionada como token propio se conserva."""
+    assert motor.sanitizar_marca("LT", "ferrula r7 1/4 LT") == "LT"
+
+
+def test_sanitizar_marca_pegada_y_suelta_se_conserva():
+    """Si aparece pegada a un código PERO también suelta, es marca real."""
+    assert motor.sanitizar_marca("HP", "HP-22070004 ferrula r7 marca HP") == "HP"
+
+
+def test_sanitizar_marca_vacia_no_crashea():
+    assert motor.sanitizar_marca("", "cualquier texto") == ""
+
+
 # ── Filtro de medidas (estricto) ─────────────────────────────────────────────
 
 def test_medidas_reductor_inexistente_vacio():
