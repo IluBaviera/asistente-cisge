@@ -113,19 +113,32 @@ def test_sanitizar_marca_vacia_no_crashea():
 
 # ── Sinónimo de tipo: 'union espiga' del vendedor = 'union escamada' catálogo ──
 
+def _payload_escamada():
+    def _p(cod, grupo, med):
+        return {"codigo": cod, "descripcion": f'union escamada {med}"',
+                "marca": "LT", "precio": 1.3, "unidad": "PZA", "almacenes": {},
+                "subfamilia": "ESPIGAS I", "grupo": grupo}
+    return {"productos": [
+        _p("90011-08", "UNION ESCAMADA R2", "1/2"),
+        _p("90012-08", "UNION ESCAMADA R12", "1/2"),        # solapa con R2
+        _p("90012-20", "UNION ESCAMADA R12", "1 1/4"),      # exclusiva de R12
+    ]}
+
+
 def test_union_espiga_resuelve_a_escamada(monkeypatch):
     """'UNION ESPIGA [HIDRAULICO]' (término del vendedor) debe canonizarse a
     'UNION ESCAMADA' y encontrar el producto, descartando ruido como HIDRAULICO."""
-    payload = {"productos": [{
-        "codigo": "90011-08",
-        "descripcion": 'union escamada r2 / r12  1/2"',
-        "marca": "LT", "precio": 1.3, "unidad": "PZA", "almacenes": {},
-        "subfamilia": "ESPIGAS I", "grupo": "UNION ESCAMADA R2",
-    }]}
-    monkeypatch.setattr(motor, "df", motor._build_df_from_api(payload))
+    monkeypatch.setattr(motor, "df", motor._build_df_from_api(_payload_escamada()))
     for t in ("UNION ESPIGA", "UNION ESPIGA HIDRAULICO", "union espiga hidraulico mang"):
         r = motor.buscar_por_tipo_medida_marca(tipo=t, medida="1/2")
-        assert r["codigo"].tolist() == ["90011-08"], t
+        assert r["codigo"].tolist() == ["90011-08"], t   # R2 prioritario
+
+
+def test_union_espiga_r2_fallback_a_r12(monkeypatch):
+    """Preferencia R2 es SUAVE: una medida que solo existe en R12 cae a R12."""
+    monkeypatch.setattr(motor, "df", motor._build_df_from_api(_payload_escamada()))
+    r = motor.buscar_por_tipo_medida_marca(tipo="UNION ESPIGA", medida="1 1/4")
+    assert r["codigo"].tolist() == ["90012-20"]
 
 
 # ── Filtro de medidas (estricto) ─────────────────────────────────────────────

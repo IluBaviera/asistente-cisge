@@ -898,6 +898,19 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
 
         r = r[r.apply(_uniforme_ok, axis=1)]  # estricto: si solo quedaban reductores poblados → vacío
 
+    # Preferencia R2 para UNION ESCAMADA (existe en R2 y R12 con medidas solapadas).
+    # Suave y POST-medida: si tras filtrar quedan filas R2 y R12, se queda con R2;
+    # si la medida solo está en R12 (ej "1 1/4") o CON COSTURA (mm), no hay R2 y se
+    # conserva lo que haya. Va aquí (no en el bloque de cola) porque ese corre antes
+    # del filtro de medida y perdería las medidas exclusivas de R12/CON COSTURA.
+    if tipo_up.startswith("UNION ESCAMADA") and not r.empty:
+        r_r2 = r[
+            r["grupo"].str.contains(r"\bR2\b", na=False, regex=True) &
+            ~r["grupo"].str.contains(r"\bR12\b", na=False, regex=True)
+        ]
+        if not r_r2.empty:
+            r = r_r2
+
     return r
 
 def buscar_por_descripcion(palabras: list) -> pd.DataFrame:
