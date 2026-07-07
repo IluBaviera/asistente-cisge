@@ -92,9 +92,18 @@ MARCA_ALIAS = {
     "rubber":       "RUBBERFLEX",
 }
 
+# ─── SINÓNIMOS DE NOMBRE DE TIPO/GRUPO ────────────────────────────────────────
+# Término del vendedor → como se cataloga en CISGE. Se resuelven DENTRO de
+# buscar_por_tipo_medida_marca (cubre el tipo que emite el parser de imagen) y
+# también se inyectan en TIPO_ALIAS (para interpretar_linea en el path de texto).
+TIPO_SINONIMO = {
+    "UNION ESPIGA": "UNION ESCAMADA",   # "union espiga hidraulico" = union escamada
+}
+
 # ─── ALIAS DE TIPO ────────────────────────────────────────────────────────────
 TIPO_ALIAS = {
     # lenguaje natural → código de tipo en BD
+    "union espiga":     "UNION ESCAMADA",  # ver TIPO_SINONIMO
     "aire":             "AIR",
     "air":              "AIR",
     "agua":             "AIR",        # mang agua/aire es AIR
@@ -618,6 +627,13 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
         tipo = partes[0] + f" {angulo}°" + (" " + partes[1] if len(partes) > 1 else "")
     if tipo:
         tipo_up = tipo.upper()
+        # Sinónimo de nombre de grupo (vendedor → catálogo), ej "UNION ESPIGA HIDRAULICO"
+        # → "UNION ESCAMADA". Canoniza el tipo completo (descarta ruido como "HIDRAULICO")
+        # para que el prefix-match contra el grupo funcione. Cubre el tipo del parser de imagen.
+        for _syn, _canon in TIPO_SINONIMO.items():
+            if _syn in tipo_up:
+                tipo = tipo_up = _canon
+                break
         # Normalizar "MANGUERA X":
         # - X es código SAE (R6, R12, 4SH...) → strip a "X" para tipo_cod fallback global
         # - X es descriptivo (DESCARGA ACEITE, SUCCION AGUA...) → "MANG X" para grupo match exacto

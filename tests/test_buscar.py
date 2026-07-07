@@ -111,6 +111,23 @@ def test_sanitizar_marca_vacia_no_crashea():
     assert motor.sanitizar_marca("", "cualquier texto") == ""
 
 
+# ── Sinónimo de tipo: 'union espiga' del vendedor = 'union escamada' catálogo ──
+
+def test_union_espiga_resuelve_a_escamada(monkeypatch):
+    """'UNION ESPIGA [HIDRAULICO]' (término del vendedor) debe canonizarse a
+    'UNION ESCAMADA' y encontrar el producto, descartando ruido como HIDRAULICO."""
+    payload = {"productos": [{
+        "codigo": "90011-08",
+        "descripcion": 'union escamada r2 / r12  1/2"',
+        "marca": "LT", "precio": 1.3, "unidad": "PZA", "almacenes": {},
+        "subfamilia": "ESPIGAS I", "grupo": "UNION ESCAMADA R2",
+    }]}
+    monkeypatch.setattr(motor, "df", motor._build_df_from_api(payload))
+    for t in ("UNION ESPIGA", "UNION ESPIGA HIDRAULICO", "union espiga hidraulico mang"):
+        r = motor.buscar_por_tipo_medida_marca(tipo=t, medida="1/2")
+        assert r["codigo"].tolist() == ["90011-08"], t
+
+
 # ── Filtro de medidas (estricto) ─────────────────────────────────────────────
 
 def test_medidas_reductor_inexistente_vacio():
