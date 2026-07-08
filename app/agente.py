@@ -908,6 +908,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
                 "subtotal":       subtotal,
                 "igv":            round(subtotal * IGV, 2),
                 "total":          round(subtotal * (1 + IGV), 2),
+                "stock":          _stock_total(fila_motor),
                 "encontrado":     True,
             })
         else:
@@ -1100,8 +1101,10 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
     fill_header  = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     fill_nf      = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")  # amarillo claro
     fill_tot     = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")  # azul claro
+    fill_ss      = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # rojo claro (sin stock)
     font_header  = Font(color="FFFFFF", bold=True)
     font_nf      = Font(italic=True, color="999999")
+    font_ss      = Font(color="9C0006")  # rojo oscuro (sin stock)
     font_tot     = Font(bold=True)
     center       = Alignment(horizontal="center")
     num_fmt      = '#,##0.00'
@@ -1131,6 +1134,11 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
             ws.cell(row=row_num, column=1).alignment = center
             for col in range(7, 11):   # G-J: montos (precio, subtotal, igv, total)
                 ws.cell(row=row_num, column=col).number_format = num_fmt
+            # Sin stock (producto en catálogo pero 0 unidades) → fila en rojo
+            if not item.get("stock", 0):
+                for col in range(1, NCOL + 1):
+                    ws.cell(row=row_num, column=col).fill = fill_ss
+                    ws.cell(row=row_num, column=col).font = font_ss
             tot_cant  += item["cantidad"]
             tot_sub   += item["subtotal"]
             tot_igv   += item["igv"]
