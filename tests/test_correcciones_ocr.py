@@ -116,6 +116,41 @@ def test_b3_codigo_090_no_es_angulo():
     assert not out.get("angulo")
 
 
+# ── _corregir_ferrula_4sh: 4SH/4SP → 00400 (no-T/M), R12 → M90010 (T/M) ───────
+
+def test_ferrula_4sh_fuerza_no_tm():
+    """4SH es la 00400 (no-T/M bajo R12) → ferrula_tm='no'."""
+    out = agente._corregir_ferrula_4sh([{
+        "tipo": "FERRULA R12", "linea_original": 'FERRULA 2" 4SH', "ferrula_tm": "si",
+    }])[0]
+    assert out["tipo"] == "FERRULA R12"
+    assert out["ferrula_tm"] == "no"
+
+
+def test_ferrula_4sp_detecta():
+    out = agente._corregir_ferrula_4sh([{
+        "tipo": "FERRULA", "linea_original": "ferrula 4sp 3/4", "ferrula_tm": "si",
+    }])[0]
+    assert out["ferrula_tm"] == "no"
+
+
+def test_ferrula_r12_conserva_tm_por_defecto():
+    """R12 a secas NO es 4SH → conserva su T/M (M90010)."""
+    out = agente._corregir_ferrula_4sh([{
+        "tipo": "FERRULA R12", "linea_original": "ferrula r12 1", "ferrula_tm": "si",
+    }])[0]
+    assert out["ferrula_tm"] == "si"
+
+
+def test_manguera_4sh_no_se_toca():
+    """'4SH' en una manguera (no ferrula) no debe tocarse."""
+    out = agente._corregir_ferrula_4sh([{
+        "tipo": "4SH", "linea_original": "manguera 4sh 1 vitillo", "ferrula_tm": "",
+    }])[0]
+    assert out["tipo"] == "4SH"
+    assert out.get("ferrula_tm") == ""
+
+
 # ── _corregir_medidas_ocr: GPT redondea 3/16 → 1/4 ───────────────────────────
 
 def test_corregir_medidas_restaura_3_16():

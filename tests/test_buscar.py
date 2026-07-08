@@ -168,6 +168,24 @@ def test_b13_marca_sola_no_colapsa_a_ferrula():
     assert set(r["codigo"]) == {"045-08-06", "050-08-08", "099-16-16"}
 
 
+def test_ferrula_r12_tm_distingue_4sh_de_r12(monkeypatch):
+    """La 4SH es 00400 (grupo 'FERRULA R12', no-T/M) y la R12 real es M90010
+    (grupo 'FERRULA R12 T/M'). El flag ferrula_tm los separa: 'no'→00400, 'si'→M90010."""
+    payload = {"productos": [
+        {"codigo": "00400-16", "descripcion": 'ferrula 4sp / 4sh  1"', "marca": "LT",
+         "precio": 1.0, "unidad": "PZA", "almacenes": {}, "subfamilia": "FERRULAS",
+         "grupo": "FERRULA R12"},
+        {"codigo": "M90010-16", "descripcion": 'ferrula r12  1"', "marca": "LT",
+         "precio": 1.0, "unidad": "PZA", "almacenes": {}, "subfamilia": "FERRULAS",
+         "grupo": "FERRULA R12 T/M"},
+    ]}
+    monkeypatch.setattr(motor, "df", motor._build_df_from_api(payload))
+    r_no = motor.buscar_por_tipo_medida_marca(tipo="FERRULA R12", medida="1", ferrula_tm="no")
+    assert r_no["codigo"].tolist() == ["00400-16"]      # 4SH
+    r_si = motor.buscar_por_tipo_medida_marca(tipo="FERRULA R12", medida="1", ferrula_tm="si")
+    assert r_si["codigo"].tolist() == ["M90010-16"]     # R12 real
+
+
 def test_b13_ferrula_sigue_aplicando_tm_por_defecto():
     """Contraprueba B13: una búsqueda de férrula sí aplica T/M por defecto."""
     r = motor.buscar_por_tipo_medida_marca(tipo="FERRULA R2", medida="1/2")

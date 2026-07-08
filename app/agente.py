@@ -106,6 +106,25 @@ def _enriquecer_tipo_ferrula(parsed_list: list[dict]) -> list[dict]:
     return parsed_list
 
 
+_RE_4SH = re.compile(r'\b4\s*S[HP]\b', re.IGNORECASE)   # 4SH / 4SP / 4 SH
+
+
+def _corregir_ferrula_4sh(parsed_list: list[dict]) -> list[dict]:
+    """La ferrula 4SH/4SP es el código 00400 (grupo 'FERRULA R12', desc 'ferrula
+    4sp/4sh'), distinta de la R12 real que es M90010 (grupo 'FERRULA R12 T/M').
+    Bajo el paraguas 'FERRULA R12', 00400 es la NO-T/M y M90010 la T/M; por eso
+    4SH/4SP se fuerza a ferrula_tm='no' para que caiga en 00400 y no en M90010.
+    (R12 a secas conserva su default T/M → M90010.)"""
+    for item in parsed_list:
+        linea = item.get("linea_original", "")
+        es_ferrula = (item.get("tipo") or "").upper().startswith("FERRULA") or "FERRULA" in linea.upper()
+        if es_ferrula and _RE_4SH.search(linea):
+            item["tipo"] = "FERRULA R12"
+            item["ferrula_tm"] = "no"
+            logger.info(f"_corregir_ferrula_4sh: '{linea[:60]}' → FERRULA R12 (00400, tm=no)")
+    return parsed_list
+
+
 # Conjunto de medidas hidráulicas conocidas (valores de MEDIDA_NOMINAL)
 _MEDIDAS_CONOCIDAS    = set(MEDIDA_NOMINAL.values())
 _RE_FRACCION_MEDIDA   = re.compile(r'\b\d+\s+\d+/\d+\b|\b\d+/\d+\b')
@@ -917,6 +936,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
     try:
         parsed_list = await _parsear_lineas_imagen(texto)
         parsed_list = _enriquecer_tipo_ferrula(parsed_list)
+        parsed_list = _corregir_ferrula_4sh(parsed_list)
         parsed_list = _corregir_medidas_ocr(parsed_list)
         parsed_list = _corregir_adaptador_ocr(parsed_list)
         logger.info(f"OCR [{numero_wa}]: {len(parsed_list)} ítems parseados")
