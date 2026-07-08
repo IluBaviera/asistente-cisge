@@ -145,6 +145,22 @@ def _corregir_medidas_ocr(parsed_list: list[dict]) -> list[dict]:
     return parsed_list
 
 
+# Roscas reconocidas en adaptadores/niples
+_ROSCAS_RE = r'JIC|BSPP|BSPT|BSP|NPT|NPTF|ORFS|BOSS|SAE|METRIC'
+
+# Niple = adaptador macho-macho de dos roscas SIN género explícito.
+# Ej: "Niple recto BSP 4 - JIC 6"  →  r1=BSP n1=4, r2=JIC n2=6 (códigos dash).
+_PAT_NIPLE = re.compile(
+    rf'\b(?P<r1>{_ROSCAS_RE})\s*0?(?P<n1>\d{{1,2}})\b'
+    r'.{0,8}?-\s*'
+    rf'(?P<r2>{_ROSCAS_RE})\s*0?(?P<n2>\d{{1,2}})',
+    re.IGNORECASE,
+)
+
+def _dash_a_pulgada(n: str) -> str:
+    """Código dash del vendedor a pulgada nominal: '4'/'04'→'1/4', '16'→'1'."""
+    return MEDIDA_NOMINAL.get(n.zfill(2), n)
+
 # Regex determinista: detecta dos pares GENDER+ROSCA en una misma línea (patrón ADAPTADOR)
 # Ej: "H. JIC 16 - M. JIC 16"  →  g1=H., t1=JIC, g2=M., t2=JIC
 _PAT_ADAP_GENDER = re.compile(
@@ -166,6 +182,23 @@ def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
         tipo_up = (item.get("tipo") or "").upper()
         linea = item.get("linea_original", "")
 
+        # Corrección 0: NIPLE = adaptador de dos roscas SIN género → ADAP MACHO x MACHO.
+        # El vendedor escribe "Niple [forma] ROSCA1 n1 - ROSCA2 n2" con códigos dash.
+        # Se canoniza con JIC primero (orden del catálogo) y género MACHO por defecto.
+        if "NIPLE" in linea.upper():
+            mn = _PAT_NIPLE.search(linea)
+            if mn:
+                r1, r2 = mn.group("r1").upper(), mn.group("r2").upper()
+                m1 = _dash_a_pulgada(mn.group("n1"))
+                m2 = _dash_a_pulgada(mn.group("n2"))
+                if r2 == "JIC" and r1 != "JIC":   # el catálogo pone JIC primero
+                    r1, r2, m1, m2 = r2, r1, m2, m1
+                item["tipo"] = f"ADAP MACHO {r1} X MACHO {r2}"
+                item["medidas"] = [m1, m2]
+                item["medida"] = ""
+                tipo_up = item["tipo"]
+                logger.info(f"_corregir_adaptador_ocr niple: '{linea[:60]}' → {item['tipo']} {[m1, m2]}")
+
         # Corrección 1: normalizar género a MACHO-primero (ESPIGA mal clasificada
         # como adaptador, o ADAP que GPT emitió con el orden invertido del texto)
         if tipo_up.startswith("ESPIGA") or tipo_up.startswith("ADAP"):
@@ -185,6 +218,15 @@ def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
                 item["tipo"] = nuevo_tipo
                 tipo_up = nuevo_tipo
                 logger.info(f"_corregir_adaptador_ocr tipo: '{linea[:60]}' → {nuevo_tipo}")
+
+        # Corrección 1b: adaptador sin género declarado → MACHO por defecto (ambos
+        # lados). "ADAP JIC X BSP" → "ADAP MACHO JIC X MACHO BSP".
+        if tipo_up.startswith("ADAP") and "MACHO" not in tipo_up and "HEMBRA" not in tipo_up:
+            nuevo = re.sub(rf'\b({_ROSCAS_RE})\b', r'MACHO \1', item["tipo"], flags=re.IGNORECASE)
+            if nuevo != item["tipo"]:
+                item["tipo"] = nuevo
+                tipo_up = nuevo.upper()
+                logger.info(f"_corregir_adaptador_ocr macho-default: '{linea[:60]}' → {nuevo}")
 
         # Corrección 2: ADAP sin ángulo → extraer (90)/(45) del texto original.
         # Exige paréntesis o símbolo de grado: evita confundir cantidades

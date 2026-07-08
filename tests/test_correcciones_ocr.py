@@ -51,6 +51,44 @@ def test_b12_sin_dos_pares_no_toca_tipo():
     assert out["tipo"] == "ADAP MACHO JIC X HEMBRA JIC"
 
 
+# ── Niple = adaptador macho-macho de dos roscas sin género ───────────────────
+
+def test_niple_recto_bsp_jic():
+    """'Niple recto BSP 4 - JIC 6' → ADAP MACHO JIC X MACHO BSP, medidas 3/8 x 1/4.
+    JIC va primero (orden del catálogo); códigos dash a pulgada."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "", "linea_original": "Niple recto BSP 4 - JIC 6",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO BSP"
+    assert out["medidas"] == ["3/8", "1/4"]
+
+
+def test_niple_90_boss_jic():
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "", "linea_original": "Niple 90° BOSS 16 - JIC 16",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO BOSS"
+    assert out["medidas"] == ["1", "1"]
+    assert out["angulo"] == "90"
+
+
+def test_niple_jic_primero_conserva_orden():
+    """Si el vendedor ya pone JIC primero, no se invierte."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "", "linea_original": "Niple recto JIC 8 - NPT 4",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO NPT"
+    assert out["medidas"] == ["1/2", "1/4"]
+
+
+def test_adap_sin_genero_default_macho():
+    """Regla: adaptador sin macho/hembra declarado → MACHO ambos lados."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "ADAP JIC X BSP", "linea_original": "adaptador jic 6 x bsp 4",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO BSP"
+
+
 # ── B3: regex de ángulo anclado ──────────────────────────────────────────────
 
 def test_b3_angulo_entre_parentesis():
