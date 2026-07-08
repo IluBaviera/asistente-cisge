@@ -567,6 +567,12 @@ async def _agente_cisge_impl(mensaje: str, numero_wa: str, nombre: str = "") -> 
     # El prefijo del código del vendedor (HP-22070004) o 'S/M' no es marca
     parsed["marca"] = sanitizar_marca(parsed.get("marca") or "", mensaje)
 
+    # Correcciones deterministas de ferrula también en texto (no solo en imagen):
+    # subtipo SAE faltante y 4SH/4SP → 00400 (tm='no'). El corrector lee linea_original.
+    parsed.setdefault("linea_original", mensaje)
+    _enriquecer_tipo_ferrula([parsed])
+    _corregir_ferrula_4sh([parsed])
+
     logger.info(f"agente [{numero_wa}]: parser → {parsed}")
 
     if parsed.get("es_saludo"):
