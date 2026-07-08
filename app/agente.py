@@ -1102,9 +1102,11 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
     fill_nf      = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")  # amarillo claro
     fill_tot     = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")  # azul claro
     fill_ss      = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # rojo claro (sin stock)
+    fill_si      = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")  # naranja claro (stock insuficiente)
     font_header  = Font(color="FFFFFF", bold=True)
     font_nf      = Font(italic=True, color="999999")
     font_ss      = Font(color="9C0006")  # rojo oscuro (sin stock)
+    font_si      = Font(color="C55A11")  # naranja oscuro (stock insuficiente)
     font_tot     = Font(bold=True)
     center       = Alignment(horizontal="center")
     num_fmt      = '#,##0.00'
@@ -1119,13 +1121,24 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
     for n, item in enumerate(rows, start=1):
         row_num = ws.max_row + 1
         if item.get("encontrado"):
+            stock = item.get("stock", 0)
+            cant  = item["cantidad"]
+            desc  = item["descripcion"]
+            # Estado de stock: sin stock (0) → rojo; hay pero < cantidad pedida → naranja
+            fila_fill = fila_font = None
+            if not stock:
+                desc += " (sin stock)"
+                fila_fill, fila_font = fill_ss, font_ss
+            elif stock < cant:
+                desc += f" (solo {stock:g} en stock)"
+                fila_fill, fila_font = fill_si, font_si
             ws.append([
                 n,
                 item["linea_original"],
                 item["codigo"],
                 item.get("marca", ""),
-                item["descripcion"],
-                item["cantidad"],
+                desc,
+                cant,
                 item["precio_unit"],
                 item["subtotal"],
                 item["igv"],
@@ -1134,11 +1147,10 @@ def generar_excel_bytes(rows: list[dict]) -> bytes:
             ws.cell(row=row_num, column=1).alignment = center
             for col in range(7, 11):   # G-J: montos (precio, subtotal, igv, total)
                 ws.cell(row=row_num, column=col).number_format = num_fmt
-            # Sin stock (producto en catálogo pero 0 unidades) → fila en rojo
-            if not item.get("stock", 0):
+            if fila_fill:
                 for col in range(1, NCOL + 1):
-                    ws.cell(row=row_num, column=col).fill = fill_ss
-                    ws.cell(row=row_num, column=col).font = font_ss
+                    ws.cell(row=row_num, column=col).fill = fila_fill
+                    ws.cell(row=row_num, column=col).font = fila_font
             tot_cant  += item["cantidad"]
             tot_sub   += item["subtotal"]
             tot_igv   += item["igv"]
