@@ -786,17 +786,26 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     # Filtro por TUBO (DIN, campo estructurado med_tubo). Solo matchea productos
     # poblados (métricas) → aditivo, no afecta familias sin med_tubo. El hilo es
     # redundante con el tubo, así que se consume `medida` (M22) tras filtrar.
-    # Union/adaptador M métrico × M NPT (DIN 2353): med_* vacío en este grupo →
-    # matchear por DESCRIPCIÓN (tubo+serie, ej "08l", y la fracción NPT). El `tubo`
-    # trae la serie ya resuelta por el parser (ej "08L"); `medida` = fracción NPT.
+    # Union/adaptador M métrico × M NPT (DIN 2353). El `tubo` trae la serie ya
+    # resuelta por el parser (ej "12L"); `medida` = fracción NPT. Matcher híbrido:
+    #  1) ESTRUCTURADO: med_tubo + med_rosca_2 (códigos ya poblados, robusto).
+    #  2) FALLBACK por DESCRIPCIÓN (tubo+serie "12l" y fracción) para los que aún
+    #     no tienen med_* — migración gradual sin romper nada.
     _es_mnpt = bool(tipo) and "METRIC" in tipo.upper() and "NPT" in tipo.upper()
     if _es_mnpt and tubo:
-        tok = str(tubo).strip().lower()
-        r = r[r["descripcion"].str.contains(re.escape(tok), na=False, case=False)]
-        if medida:
-            npt = medida.strip().rstrip('"').strip()
-            r = r[r["descripcion"].str.contains(re.escape(npt), na=False)]
-        return r
+        tok = str(tubo).strip()
+        npt = medida.strip().rstrip('"').strip() if medida else ""
+        estruct = r[r["med_tubo"].astype(str).str.strip().str.upper() == tok.upper()]
+        if npt:
+            estruct = estruct[
+                estruct["med_rosca_2"].astype(str).str.strip().str.rstrip('"').str.strip() == npt]
+        if not estruct.empty:
+            return estruct
+        # fallback por descripción
+        fb = r[r["descripcion"].str.contains(re.escape(tok.lower()), na=False, case=False)]
+        if npt:
+            fb = fb[fb["descripcion"].str.contains(re.escape(npt), na=False)]
+        return fb
 
     if tubo:
         tn = str(tubo).strip().lower().replace("mm", "").strip()

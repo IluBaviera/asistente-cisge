@@ -187,8 +187,8 @@ def test_ferrula_r12_tm_distingue_4sh_de_r12(monkeypatch):
 
 
 def test_union_mnpt_matchea_por_descripcion(monkeypatch):
-    """UNION M METRICO X M NPT tiene med_* vacío → matchea por descripción
-    (tubo+serie '08l' y fracción NPT). Debe distinguir 06L de 06S."""
+    """FALLBACK: sin med_* poblado, matchea por descripción (tubo+serie '08l' y
+    fracción NPT). Debe distinguir 06L de 06S."""
     def _u(cod, descr):
         return {"codigo": cod, "descripcion": descr, "marca": "DME", "precio": 1.0,
                 "unidad": "PZA", "almacenes": {}, "subfamilia": "ADAPTADORES II",
@@ -203,6 +203,27 @@ def test_union_mnpt_matchea_por_descripcion(monkeypatch):
     assert r["codigo"].tolist() == ["DMC-08L-02N"]
     r = motor.buscar_por_tipo_medida_marca(tipo="UNION M METRICO X M NPT", tubo="06S", medida="1/4")
     assert r["codigo"].tolist() == ["DMC-06S-02N"]
+
+
+def test_union_mnpt_estructurado_gana_a_descripcion(monkeypatch):
+    """ESTRUCTURADO: si med_tubo+med_rosca_2 están poblados, matchea por campo
+    aunque la descripción use el formato alterno ('tubo 12', sin '12l')."""
+    def _u(cod, descr, tubo="", r2=""):
+        return {"codigo": cod, "descripcion": descr, "marca": "DME", "precio": 1.0,
+                "unidad": "PZA", "almacenes": {}, "subfamilia": "ADAPTADORES II",
+                "grupo": "UNION M METRICO X M NPT (DIN 2353)",
+                "med_rosca_1": "", "med_rosca_2": r2, "med_tubo": tubo, "med_manguera": ""}
+    payload = {"productos": [
+        # poblado, descripción SIN '12l' → solo lo encuentra el match estructurado
+        _u("DMC-12L-02N", "union recto metrico 18 tubo 12 x 1/4 macho npt", tubo="12L", r2="1/4"),
+        # sin poblar, descripción normal → fallback
+        _u("DMC-08L-02N", 'union m. metrico x m. npt - 08l x 1/4"'),
+    ]}
+    monkeypatch.setattr(motor, "df", motor._build_df_from_api(payload))
+    r = motor.buscar_por_tipo_medida_marca(tipo="UNION M METRICO X M NPT", tubo="12L", medida="1/4")
+    assert r["codigo"].tolist() == ["DMC-12L-02N"]      # estructurado
+    r = motor.buscar_por_tipo_medida_marca(tipo="UNION M METRICO X M NPT", tubo="08L", medida="1/4")
+    assert r["codigo"].tolist() == ["DMC-08L-02N"]      # fallback descripción
 
 
 def test_b13_ferrula_sigue_aplicando_tm_por_defecto():
