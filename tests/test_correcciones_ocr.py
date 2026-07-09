@@ -89,6 +89,42 @@ def test_adap_sin_genero_default_macho():
     assert out["tipo"] == "ADAP MACHO JIC X MACHO BSP"
 
 
+def test_adap_genero_abreviado_pegado():
+    """'mbsp 16 m jic 16' (género 'm' pegado/suelto, códigos dash) → ADAP MACHO
+    JIC X MACHO BSP, medidas 1 x 1 (JIC primero)."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "ADAP", "linea_original": "Adao mbsp 16 m jic 16 =20",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO BSP"
+    assert out["medidas"] == ["1", "1"]
+
+
+def test_adap_abreviado_sin_tipo_gpt():
+    """'Bsp 08 mjic 12' sin tipo del GPT → ADAP MACHO JIC X MACHO BSP 3/4 x 1/2."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "", "linea_original": "Bsp 08 mjic 12 =30",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO BSP"
+    assert out["medidas"] == ["3/4", "1/2"]
+
+
+def test_adap_genero_abreviado_hembra():
+    """'h npt 8 m jic 6' → respeta géneros: HEMBRA NPT, MACHO JIC (JIC primero)."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "", "linea_original": "adap h npt 8 m jic 6",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X HEMBRA NPT"
+
+
+def test_bushing_no_se_reinterpreta_como_adap():
+    """Un bushing (dos roscas) NO debe hijackearse a ADAP."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "BUSHING MACHO JIC X HEMBRA JIC",
+        "linea_original": "bushing m jic 20 h jic 16",
+    }])[0]
+    assert out["tipo"] == "BUSHING MACHO JIC X HEMBRA JIC"
+
+
 # ── B3: regex de ángulo anclado ──────────────────────────────────────────────
 
 def test_b3_angulo_entre_parentesis():
