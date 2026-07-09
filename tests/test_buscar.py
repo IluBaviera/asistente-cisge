@@ -186,6 +186,25 @@ def test_ferrula_r12_tm_distingue_4sh_de_r12(monkeypatch):
     assert r_si["codigo"].tolist() == ["M90010-16"]     # R12 real
 
 
+def test_union_mnpt_matchea_por_descripcion(monkeypatch):
+    """UNION M METRICO X M NPT tiene med_* vacío → matchea por descripción
+    (tubo+serie '08l' y fracción NPT). Debe distinguir 06L de 06S."""
+    def _u(cod, descr):
+        return {"codigo": cod, "descripcion": descr, "marca": "DME", "precio": 1.0,
+                "unidad": "PZA", "almacenes": {}, "subfamilia": "ADAPTADORES II",
+                "grupo": "UNION M METRICO X M NPT (DIN 2353)"}
+    payload = {"productos": [
+        _u("DMC-08L-02N", 'union m. metrico x m. npt - 08l x 1/4"'),
+        _u("DMC-06L-02N", 'union m. metrico x m. npt - 06l x 1/4"'),
+        _u("DMC-06S-02N", 'union m. metrico x m. npt - 06s x 1/4"'),
+    ]}
+    monkeypatch.setattr(motor, "df", motor._build_df_from_api(payload))
+    r = motor.buscar_por_tipo_medida_marca(tipo="UNION M METRICO X M NPT", tubo="08L", medida="1/4")
+    assert r["codigo"].tolist() == ["DMC-08L-02N"]
+    r = motor.buscar_por_tipo_medida_marca(tipo="UNION M METRICO X M NPT", tubo="06S", medida="1/4")
+    assert r["codigo"].tolist() == ["DMC-06S-02N"]
+
+
 def test_b13_ferrula_sigue_aplicando_tm_por_defecto():
     """Contraprueba B13: una búsqueda de férrula sí aplica T/M por defecto."""
     r = motor.buscar_por_tipo_medida_marca(tipo="FERRULA R2", medida="1/2")

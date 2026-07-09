@@ -786,6 +786,18 @@ def buscar_por_tipo_medida_marca(tipo=None, medida=None, marca=None, presion=Non
     # Filtro por TUBO (DIN, campo estructurado med_tubo). Solo matchea productos
     # poblados (métricas) → aditivo, no afecta familias sin med_tubo. El hilo es
     # redundante con el tubo, así que se consume `medida` (M22) tras filtrar.
+    # Union/adaptador M métrico × M NPT (DIN 2353): med_* vacío en este grupo →
+    # matchear por DESCRIPCIÓN (tubo+serie, ej "08l", y la fracción NPT). El `tubo`
+    # trae la serie ya resuelta por el parser (ej "08L"); `medida` = fracción NPT.
+    _es_mnpt = bool(tipo) and "METRIC" in tipo.upper() and "NPT" in tipo.upper()
+    if _es_mnpt and tubo:
+        tok = str(tubo).strip().lower()
+        r = r[r["descripcion"].str.contains(re.escape(tok), na=False, case=False)]
+        if medida:
+            npt = medida.strip().rstrip('"').strip()
+            r = r[r["descripcion"].str.contains(re.escape(npt), na=False)]
+        return r
+
     if tubo:
         tn = str(tubo).strip().lower().replace("mm", "").strip()
         r = r[r["med_tubo"].astype(str).str.strip() == tn]

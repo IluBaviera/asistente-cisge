@@ -209,6 +209,55 @@ def _parse_adap_2roscas(linea: str):
         r1, r2, g1, g2, d1, d2 = r2, r1, g2, g1, d2, d1
     return f"ADAP {g1} {r1} X {g2} {r2}", [d1, d2]
 
+
+# DIN 2353: tubo (mm) → rosca métrica, por serie. El vendedor da el par (M, tubo)
+# (ej "M14 tubo 8"), que fija la serie: si M coincide con la tabla L → serie L, etc.
+_DIN_L = {6: "M12", 8: "M14", 10: "M16", 12: "M18", 15: "M22",
+          18: "M26", 22: "M30", 28: "M36", 35: "M45", 42: "M52"}
+_DIN_S = {6: "M14", 8: "M16", 10: "M18", 12: "M20", 14: "M22",
+          16: "M24", 20: "M30", 25: "M36", 30: "M42", 38: "M52"}
+
+def _serie_din(rosca_m: str, tubo: int) -> str:
+    if _DIN_L.get(tubo) == rosca_m:
+        return "L"
+    if _DIN_S.get(tubo) == rosca_m:
+        return "S"
+    return ""   # desconocida: se matchea solo por número de tubo
+
+# "M14 tubo 8 x 1/4 npt" → rosca M14, tubo 8, lado NPT 1/4 (fracción opcional).
+_PAT_UNION_MNPT = re.compile(
+    r'\bM\s*(\d{1,2})\b[^/\d]*?tubo\s*0?(\d{1,2})\b(?:[^/\d]*?(\d+\s*/\s*\d+))?',
+    re.IGNORECASE)
+
+
+def _corregir_union_metrico_npt(parsed_list: list[dict]) -> list[dict]:
+    """Union/adaptador MACHO métrico × MACHO NPT (DIN 2353). El vendedor escribe
+    'M14 tubo 8 x 1/4 npt' (rosca métrica M14, tubo 8 mm, lado NPT 1/4). Este grupo
+    tiene med_* vacío → se matchea por descripción (tubo+serie y NPT). La serie
+    (L/S) sale del par (M, tubo). Recta = 'UNION M METRICO X M NPT'; con 90° =
+    'ADAP 90° MACHO METRICO X MACHO NPT'. Siempre macho×macho."""
+    for item in parsed_list:
+        linea = item.get("linea_original", "")
+        if "TUBO" not in linea.upper():
+            continue
+        mt = _PAT_UNION_MNPT.search(linea)
+        if not mt:
+            continue
+        rosca_m = "M" + mt.group(1)
+        tubo = int(mt.group(2))
+        npt = (mt.group(3) or "").replace(" ", "")
+        serie = _serie_din(rosca_m, tubo)
+        ang90 = bool(re.search(r'\b90\b', linea))
+        item["tipo"] = ("ADAP 90° MACHO METRICO X MACHO NPT" if ang90
+                        else "UNION M METRICO X M NPT")
+        item["tubo"] = f"{tubo:02d}{serie}"   # ej "08L", "06S", o "10" si serie desconocida
+        item["medidas"] = []
+        if npt:
+            item["medida"] = npt
+        logger.info(f"_corregir_union_metrico_npt: '{linea[:50]}' → {item['tipo']} tubo={item['tubo']} npt={npt}")
+    return parsed_list
+
+
 # Regex determinista: detecta dos pares GENDER+ROSCA en una misma línea (patrón ADAPTADOR)
 # Ej: "H. JIC 16 - M. JIC 16"  →  g1=H., t1=JIC, g2=M., t2=JIC
 _PAT_ADAP_GENDER = re.compile(
@@ -1052,6 +1101,7 @@ async def procesar_imagen_whatsapp(image_id: str, numero_wa: str) -> str:
         parsed_list = await _parsear_lineas_imagen(texto)
         parsed_list = _enriquecer_tipo_ferrula(parsed_list)
         parsed_list = _corregir_ferrula_4sh(parsed_list)
+        parsed_list = _corregir_union_metrico_npt(parsed_list)
         parsed_list = _corregir_medidas_ocr(parsed_list)
         parsed_list = _corregir_adaptador_ocr(parsed_list)
         logger.info(f"OCR [{numero_wa}]: {len(parsed_list)} ítems parseados")

@@ -148,6 +148,33 @@ def test_bushing_no_se_reinterpreta_como_adap():
     assert out["tipo"] == "BUSHING MACHO JIC X HEMBRA JIC"
 
 
+# ── Union M métrico × M NPT (DIN 2353): serie del par (M, tubo) ──────────────
+
+def test_union_mnpt_serie_L():
+    """'M14 tubo 8 x 1/4 npt' → UNION M METRICO X M NPT, tubo 08L, npt 1/4."""
+    out = agente._corregir_union_metrico_npt([{
+        "linea_original": "Adap m14 tubo 8 x 1/4 npt =40",
+    }])[0]
+    assert out["tipo"] == "UNION M METRICO X M NPT"
+    assert out["tubo"] == "08L"
+    assert out["medida"] == "1/4"
+
+
+def test_union_mnpt_serie_S_desambigua_tubo6():
+    """Mismo tubo 6 pero M distinto → serie distinta: M12→06L, M14→06S."""
+    l12 = agente._corregir_union_metrico_npt([{"linea_original": "M12 tubo 6 x 1/4 npt"}])[0]
+    l14 = agente._corregir_union_metrico_npt([{"linea_original": "M14 tubo 6 x 1/4 npt"}])[0]
+    assert l12["tubo"] == "06L"
+    assert l14["tubo"] == "06S"
+
+
+def test_union_mnpt_90_es_adap():
+    out = agente._corregir_union_metrico_npt([{
+        "linea_original": "Adap a 90 m16 tubo 8 x 1/4 npt",
+    }])[0]
+    assert out["tipo"] == "ADAP 90° MACHO METRICO X MACHO NPT"
+
+
 # ── B3: regex de ángulo anclado ──────────────────────────────────────────────
 
 def test_b3_angulo_entre_parentesis():
