@@ -151,6 +151,34 @@ def test_manguera_4sh_no_se_toca():
     assert out.get("ferrula_tm") == ""
 
 
+# ── Continuación conversacional: marca suelta tras mostrar un producto ───────
+
+def test_continuacion_marca_cotiza_ultimo_producto(monkeypatch):
+    """Tras ver el producto multi-marca 045-08-06, responder 'DME' cotiza ese
+    código con esa marca (sin caer en los filtros)."""
+    import app.motor as motor
+    r = motor.buscar_por_codigo("045-08-06")
+    ult = motor.formatear_multi_marca(r)
+    monkeypatch.setattr(agente, "cargar_historial",
+                        lambda n: [{"role": "assistant", "content": ult}])
+    out = agente._resolver_continuacion_marca("DME", "111", 1, 0)
+    assert out is not None
+    assert "045-08-06" in out and "DME" in out
+
+
+def test_continuacion_ignora_palabra_no_marca(monkeypatch):
+    """'hola' no es marca → no dispara continuación (cae al flujo normal)."""
+    monkeypatch.setattr(agente, "cargar_historial",
+                        lambda n: [{"role": "assistant", "content": "📋 *045-08-06*"}])
+    assert agente._resolver_continuacion_marca("hola", "111", 1, 0) is None
+
+
+def test_continuacion_sin_producto_previo(monkeypatch):
+    """Marca válida pero sin producto reciente en el historial → None."""
+    monkeypatch.setattr(agente, "cargar_historial", lambda n: [])
+    assert agente._resolver_continuacion_marca("DME", "111", 1, 0) is None
+
+
 # ── _corregir_medidas_ocr: GPT redondea 3/16 → 1/4 ───────────────────────────
 
 def test_corregir_medidas_restaura_3_16():

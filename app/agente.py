@@ -6,6 +6,7 @@ import logging
 import pathlib
 import httpx
 from openai import AsyncOpenAI
+import app.motor as motor
 from app.db import cargar_historial, guardar_mensajes
 from app.tools import TOOLS_SCHEMA, tool_buscar_producto, tool_ver_stock, tool_generar_cotizacion
 from app.motor import (
@@ -426,6 +427,63 @@ _MSG_ERROR_CONEXION = (
     "Disculpa los inconvenientes."
 )
 
+# ── Continuación conversacional ───────────────────────────────────────────────
+# Si el vendedor responde con una marca suelta ("LT") justo después de ver un
+# producto, cotiza ESE producto con esa marca en vez de tratarlo como búsqueda
+# nueva (que caería en los filtros). 0 tokens extra: reusa el historial guardado.
+_RE_COD_BOLD = re.compile(r'\*([^*\s]+)\*')
+
+
+def _marca_conocida(tok: str) -> str | None:
+    """Devuelve la marca oficial (mayúsculas) si el token es una marca real del
+    catálogo o un alias; None si no. Usa el df en vivo (motor.df)."""
+    up = tok.upper()
+    try:
+        if up in {m.upper() for m in motor.df["marca"].dropna().unique()}:
+            return up
+    except Exception:
+        return None
+    ali = _aliases_marcas.get(up.lower())
+    return ali.upper() if ali else None
+
+
+def _codigo_del_historial(numero_wa: str) -> str | None:
+    """Código del ÚLTIMO mensaje del asistente (producto recién mostrado)."""
+    historial = cargar_historial(numero_wa)
+    ult = next((h.get("content", "") for h in reversed(historial)
+                if h.get("role") == "assistant"), "")
+    for tok in _RE_COD_BOLD.findall(ult):
+        if any(c.isdigit() for c in tok):   # el código lleva dígitos; la marca no
+            return tok
+    return None
+
+
+def _resolver_continuacion_marca(texto_cod: str, numero_wa: str,
+                                 cantidad: int, descuento: float):
+    """Marca suelta tras mostrar un producto → cotiza ese producto con esa marca."""
+    t = re.sub(r'^(marca|el|la|con|dame|ponme|quiero)\s+', '',
+               texto_cod.strip(), flags=re.IGNORECASE).strip()
+    m = re.match(r'^([A-Za-z][A-Za-z0-9\-]{1,14})(?:\s+x?\s*(\d+))?$', t, re.IGNORECASE)
+    if not m:
+        return None
+    marca_of = _marca_conocida(m.group(1))   # gate barato: solo sigue si es marca real
+    if not marca_of:
+        return None
+    codigo = _codigo_del_historial(numero_wa)
+    if not codigo:
+        return None
+    r = buscar_por_codigo(codigo)
+    if r.empty:
+        return None
+    fila = r[r["marca"].str.upper() == marca_of]
+    if fila.empty:
+        return None
+    if m.group(2):
+        cantidad = int(m.group(2))
+    logger.info(f"agente [{numero_wa}]: continuación marca → {codigo} + {marca_of}")
+    return formatear_resultado(fila.iloc[0], cantidad, descuento)
+
+
 async def agente_cisge(mensaje: str, numero_wa: str, nombre: str = "") -> str:
     """E1 código exacto → E2 prefijo → GPT parser → E3 campos → E4 GPT."""
     try:
@@ -489,6 +547,12 @@ async def _agente_cisge_impl(mensaje: str, numero_wa: str, nombre: str = "") -> 
                      if len(exactos) == 1 else formatear_multi_marca(exactos))
         guardar_mensajes(numero_wa, mensaje, respuesta)
         return respuesta
+
+    # ── Continuación: marca suelta tras mostrar un producto ───────────────────
+    cont = _resolver_continuacion_marca(texto_cod, numero_wa, cantidad, descuento)
+    if cont is not None:
+        guardar_mensajes(numero_wa, mensaje, cont)
+        return cont
 
     # ── E2: prefijo de código ─────────────────────────────────────────────────
     if len(texto_cod) >= 3:
