@@ -210,6 +210,41 @@ def _parse_adap_2roscas(linea: str):
     return f"ADAP {g1} {r1} X {g2} {r2}", [d1, d2]
 
 
+_ROSCA_TOK = re.compile(rf'\b({_ROSCAS_RE})\b', re.IGNORECASE)
+_GEN_TOK   = re.compile(r'\bMACHO\b|\bHEMBRA\b|\bH\.|\bM\.|\bM\b|\bH\b|\bF\b', re.IGNORECASE)
+
+
+def _gen_en(seg: str) -> str:
+    mm = _GEN_TOK.search(seg)
+    return _genero_abrev(mm.group()) if mm else "MACHO"
+
+
+def _parse_adap_flexible(linea: str):
+    """Adaptador de dos roscas con ORDEN LIBRE y/o fracciones. Fallback de
+    _parse_adap_2roscas (que exige rosca-antes-de-código-dash). Ej:
+    'ADAP MACHO 1/8 NPT x 1/4 M. JIC' → JIC 1/4 × NPT 1/8. Cada medida se
+    asigna a la rosca más cercana; género por segmento; JIC primero."""
+    txt = re.sub(r'=\s*\d+\s*\w*\.?', ' ', linea)      # quita "= 6und."
+    txt = re.sub(r'\b(?:90|45)\s*°', ' ', txt)         # quita ángulo
+    roscas = [(mm.start(), mm.group(1).upper()) for mm in _ROSCA_TOK.finditer(txt)][:2]
+    if len(roscas) < 2:
+        return None
+    sizes = [(mm.start(), mm.group().replace(" ", ""))
+             for mm in re.finditer(r'\d+\s*/\s*\d+|\b\d{1,2}\b', txt)]
+    if len(sizes) < 2:
+        return None
+    (p1, ro1), (p2, ro2) = roscas
+    s1 = min(sizes, key=lambda s: abs(s[0] - p1))
+    s2 = min([s for s in sizes if s is not s1], key=lambda s: abs(s[0] - p2))
+    _sz = lambda v: v if '/' in v else _dash_a_pulgada(v)
+    d1, d2 = _sz(s1[1]), _sz(s2[1])
+    mid = (p1 + p2) // 2
+    g1, g2 = _gen_en(txt[:mid]), _gen_en(txt[mid:])
+    if ro2 == "JIC" and ro1 != "JIC":                  # el catálogo pone JIC primero
+        ro1, ro2, g1, g2, d1, d2 = ro2, ro1, g2, g1, d2, d1
+    return f"ADAP {g1} {ro1} X {g2} {ro2}", [d1, d2]
+
+
 # DIN 2353: tubo (mm) → rosca métrica, por serie. El vendedor da el par (M, tubo)
 # (ej "M14 tubo 8"), que fija la serie: si M coincide con la tabla L → serie L, etc.
 _DIN_L = {6: "M12", 8: "M14", 10: "M16", 12: "M18", 15: "M22",
@@ -282,7 +317,7 @@ def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
 
         # Corrección 1: dos roscas → ADAP canónico. Se dispara si el tipo ya es
         # ESPIGA/ADAP, o si la línea tiene dos roscas y NO es otra familia.
-        adap_ctx = tipo_up.startswith(("ESPIGA", "ADAP")) or (
+        adap_ctx = tipo_up.startswith(("ESPIGA", "ADAP")) or "ADAP" in linea.upper() or (
             bool(_PAT_ADAP_2R.search(linea)) and not tipo_up.startswith(_OTRAS_FAM))
         if adap_ctx:
             m = _PAT_ADAP_GENDER.search(linea)
@@ -303,8 +338,9 @@ def _corregir_adaptador_ocr(parsed_list: list[dict]) -> list[dict]:
                 tipo_up = nuevo_tipo
                 logger.info(f"_corregir_adaptador_ocr tipo: '{linea[:60]}' → {nuevo_tipo}")
             elif not tipo_up.startswith(_OTRAS_FAM):
-                # 1b: género abreviado/ausente + código dash (niples, "mbsp 16 m jic 16")
-                res = _parse_adap_2roscas(linea)
+                # 1b: género abreviado/ausente + código dash (niples, "mbsp 16 m jic 16");
+                # fallback flexible para orden libre + fracciones ("1/8 NPT x 1/4 M. JIC")
+                res = _parse_adap_2roscas(linea) or _parse_adap_flexible(linea)
                 if res:
                     item["tipo"], item["medidas"] = res
                     item["medida"] = ""

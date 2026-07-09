@@ -139,6 +139,26 @@ def test_adap_genero_abreviado_hembra():
     assert out["tipo"] == "ADAP MACHO JIC X HEMBRA NPT"
 
 
+def test_adap_orden_libre_con_fracciones():
+    """'ADAP. MACHO 1/8 NPT x 1/4 M. JIC' (medida antes de la rosca, fracciones)
+    → ADAP MACHO JIC X MACHO NPT, medidas 1/4 (JIC) x 1/8 (NPT). Familia 021."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "ADAP MACHO NPT X MACHO JIC",
+        "linea_original": "ADAP. MACHO 1/8 NPT x 1/4 M. JIC = 6und.",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO NPT"
+    assert out["medidas"] == ["1/4", "1/8"]
+
+
+def test_adap_fracciones_orden_normal():
+    """Fracciones en orden normal: 'adap m jic 1/2 x m npt 3/8'."""
+    out = agente._corregir_adaptador_ocr([{
+        "tipo": "", "linea_original": "adap m jic 1/2 x m npt 3/8",
+    }])[0]
+    assert out["tipo"] == "ADAP MACHO JIC X MACHO NPT"
+    assert out["medidas"] == ["1/2", "3/8"]
+
+
 def test_bushing_no_se_reinterpreta_como_adap():
     """Un bushing (dos roscas) NO debe hijackearse a ADAP."""
     out = agente._corregir_adaptador_ocr([{
