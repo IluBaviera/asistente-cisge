@@ -731,9 +731,31 @@ _MARCA_PRIORIDAD_IMAGEN: dict[str, list[str]] = {
 }
 
 
+# Líneas de código preferidas para adaptadores JIC×BSP (misma pieza, distinta
+# línea de código): B06 antes que B01, con fallback por stock.
+_COD_PRIORIDAD = ("B06", "B01")
+
+
 def _elegir_fila_por_prioridad(resultados, cantidad: int):
-    """Elige una sola fila según prioridad de marca y stock suficiente."""
+    """Elige una sola fila según prioridad de marca/código y stock suficiente."""
     from app.motor import _stock_total
+    need = max(cantidad, 1)
+
+    # Preferencia de línea de código B06 > B01 (adaptadores JIC×BSP): la que
+    # cumpla el stock pedido; si B06 no tiene stock, cae a B01; si ninguna tiene,
+    # la preferida (B06) igual. Solo aplica cuando hay códigos B06/B01.
+    cod_up = resultados["codigo"].astype(str).str.upper()
+    mask_b0 = cod_up.str.startswith("B06") | cod_up.str.startswith("B01")
+    if mask_b0.any():
+        cand = resultados[mask_b0]
+
+        def _rank(row):
+            stock = _stock_total(row)
+            c = 0 if str(row["codigo"]).upper().startswith("B06") else 1
+            return (0 if stock >= need else 1, c, -stock)   # menor = mejor
+
+        return min((row for _, row in cand.iterrows()), key=_rank)
+
     subfamilia = resultados.iloc[0]["subfamilia"]
     prioridad  = _MARCA_PRIORIDAD_IMAGEN.get(subfamilia, [])
 

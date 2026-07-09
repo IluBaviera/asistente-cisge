@@ -3,7 +3,30 @@
 Cubren los bugs resueltos esta semana: B12 (género ADAP), B3 (regex de
 ángulo), el redondeo de medidas y el enriquecido de subtipo de ferrula.
 """
+import pandas as pd
 import app.agente as agente
+
+
+# ── Preferencia de línea de código B06 > B01 (adaptadores JIC×BSP) ────────────
+
+def _fila_b0(cod, stock):
+    return {"codigo": cod, "marca": "DME", "subfamilia": "ADAPTADORES I",
+            "almacenes": {"A": stock}, "descripcion": "adap", "precio": 1.0, "unidad": "PZA"}
+
+
+def test_b06_preferido_con_stock():
+    df = pd.DataFrame([_fila_b0("B06-08-06", 100), _fila_b0("B01-08-06", 50)])
+    assert agente._elegir_fila_por_prioridad(df, 1)["codigo"] == "B06-08-06"
+
+
+def test_b06_sin_stock_cae_a_b01():
+    df = pd.DataFrame([_fila_b0("B06-08-06", 0), _fila_b0("B01-08-06", 50)])
+    assert agente._elegir_fila_por_prioridad(df, 1)["codigo"] == "B01-08-06"
+
+
+def test_b06_b01_ambos_sin_stock_gana_b06():
+    df = pd.DataFrame([_fila_b0("B06-08-06", 0), _fila_b0("B01-08-06", 0)])
+    assert agente._elegir_fila_por_prioridad(df, 1)["codigo"] == "B06-08-06"
 
 
 # ── B12 + Corrección 1: normalización de género MACHO-primero ────────────────
