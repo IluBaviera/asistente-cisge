@@ -107,7 +107,7 @@ def _enriquecer_tipo_ferrula(parsed_list: list[dict]) -> list[dict]:
     return parsed_list
 
 
-_RE_4SH = re.compile(r'\b4\s*S[HP]\b', re.IGNORECASE)   # 4SH / 4SP / 4 SH
+_RE_4SH = re.compile(r'\b4\s*[5S]\s*[HP]\b', re.IGNORECASE)   # 4SH / 4SP / 4 SH / 45H (OCR: S→5)
 
 
 def _corregir_ferrula_4sh(parsed_list: list[dict]) -> list[dict]:

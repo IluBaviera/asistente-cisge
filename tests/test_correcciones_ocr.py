@@ -233,6 +233,15 @@ def test_ferrula_4sh_fuerza_no_tm():
     assert out["ferrula_tm"] == "no"
 
 
+def test_ferrula_45h_ocr_es_4sh():
+    """'45H' es error de OCR de '4SH' (S→5) → misma 00400 (tm='no')."""
+    out = agente._corregir_ferrula_4sh([{
+        "tipo": "FERRULA 45H", "linea_original": "Ferrula 45H 3/4 = 6und.", "ferrula_tm": "si",
+    }])[0]
+    assert out["tipo"] == "FERRULA R12"
+    assert out["ferrula_tm"] == "no"
+
+
 def test_ferrula_4sp_detecta():
     out = agente._corregir_ferrula_4sh([{
         "tipo": "FERRULA", "linea_original": "ferrula 4sp 3/4", "ferrula_tm": "si",
